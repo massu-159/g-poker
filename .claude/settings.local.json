@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(scripts/create-new-feature.sh:*)",
+      "WebSearch",
+      "Bash(chmod:*)",
+      "Bash(scripts/setup-plan.sh:*)",
+      "Bash(scripts/check-task-prerequisites.sh:*)",
+      "mcp__serena__list_dir"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
