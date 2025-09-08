@@ -4,13 +4,20 @@
 Online multiplayer ごきぶりポーカー (Cockroach Poker) mobile app built with React Native + Expo. Two players on separate devices play the bluffing card game with real-time synchronization.
 
 ## Current Architecture
-- **Mobile**: React Native 0.73+ with Expo SDK 50+
-- **Backend**: Supabase (PostgreSQL + Auth + Realtime)
-- **Database**: Supabase (server) + SQLite (client cache)
+- **Mobile**: React Native 0.79.5 with Expo SDK 53+
+- **Backend**: Supabase Cloud (PostgreSQL + Auth + Realtime)
+- **Database**: Supabase Cloud (remote) + SQLite (client cache)
 - **State Management**: Zustand + TanStack Query
 - **Styling**: Shopify Restyle
 - **Animations**: React Native Reanimated 3
-- **Testing**: Jest + React Native Testing Library, Supabase local dev
+- **Testing**: Jest + React Native Testing Library
+
+## Database Configuration
+**IMPORTANT**: This project connects directly to Supabase Cloud, NOT local Supabase.
+- **Environment**: Production Supabase project (vwrkmlgziauzchqpxemq)
+- **Connection**: Direct HTTPS API calls to cloud.supabase.com
+- **Local Development**: Uses remote database for consistency
+- **Migration**: Applied directly to cloud database via Supabase Dashboard
 
 ## Key Technical Decisions
 1. **Supabase over Custom Server**: Built-in realtime, auth, and database in one service
@@ -28,6 +35,7 @@ Online multiplayer ごきぶりポーカー (Cockroach Poker) mobile app built w
 
 ## Directory Structure
 ```
+# Product Code
 src/
 ├── components/      # Reusable UI (cards, game board)
 ├── screens/         # Lobby, Game, Results screens
@@ -39,6 +47,20 @@ supabase/
 ├── migrations/      # Database schema migrations
 ├── functions/       # Edge functions (optional)
 └── config.toml     # Supabase project configuration
+
+tests/
+├── integration/     # Supabase integration tests
+├── unit/           # Component and service unit tests
+└── e2e/            # End-to-end game flow tests
+
+# Design & Development Documentation
+docs/
+├── specs/          # Feature specifications and design documents
+│   └── 001-reactnative-web/
+├── memory/         # Claude Code memory files
+├── templates/      # Task and document templates
+├── scripts/        # Development and deployment scripts
+└── .claude/        # Claude Code configuration
 ```
 
 ## Core Data Models
@@ -95,22 +117,29 @@ const useGameStore = create<GameStore>((set, get) => ({
 
 ## Development Commands
 ```bash
-# Supabase
-npx supabase start          # Start local Supabase stack
-npx supabase db reset       # Reset local database
-npx supabase db push        # Push schema changes
-
-# Mobile App
+# Mobile App Development
 npx expo start              # Start Expo dev server
+npx expo start --ios        # iOS Simulator
+npx expo start --android    # Android Emulator
+npx expo start --web        # Web browser
+npx expo start --clear      # Clear cache and start
+
+# Database (Supabase Cloud)
+# Apply migrations via Supabase Dashboard: https://supabase.com/dashboard
+# No local Supabase setup required - connects directly to cloud
+
+# Code Quality
 npm run test                # Run component tests
 npm run lint                # ESLint + TypeScript checks
+npm run typecheck           # TypeScript type checking
 ```
 
 ## Testing Strategy
-- **Contract Tests**: Database schema validation, RLS policy testing
-- **Integration Tests**: Full game flow with Supabase local instance
+- **Contract Tests**: Database schema validation, RLS policy testing with Supabase Cloud
+- **Integration Tests**: Full game flow with Supabase Cloud API
 - **Component Tests**: React Native components with Testing Library
 - **E2E Tests**: Complete user journeys across multiple devices
+- **Database Testing**: Uses Supabase Cloud test data, not local instance
 
 ## Performance Requirements
 - <100ms card action response time
@@ -120,15 +149,16 @@ npm run lint                # ESLint + TypeScript checks
 - Support 1k concurrent games
 
 ## Common Debugging
-1. **Supabase Issues**: Check connection status, monitor realtime subscriptions, verify RLS policies
+1. **Supabase Issues**: Check cloud connection status, monitor realtime subscriptions via Supabase Dashboard, verify RLS policies
 2. **State Sync**: Use Zustand DevTools, check optimistic update reconciliation
 3. **Animation Performance**: Monitor FPS, check native driver usage, profile memory
 4. **Network Resilience**: Test disconnect scenarios, verify offline SQLite cache
+5. **Database Access**: Use Supabase Dashboard SQL Editor for direct database queries
 
 ## Recent Changes (Last 3)
-1. 2025-09-07: **MAJOR**: Migrated from Socket.io to Supabase realtime architecture
-2. 2025-09-07: Updated database schema for Supabase integration 
-3. 2025-09-07: Simplified project structure (eliminated custom API server)
+1. 2025-09-08: **MAJOR**: Updated to Expo SDK 53 + React Native 0.79.5 + React 19.0.0
+2. 2025-09-08: **MAJOR**: Migrated to Supabase Cloud direct connection (no local Supabase)
+3. 2025-09-08: Reorganized directory structure: docs/ for specifications, src/ for code
 
 ## Next Major Milestones
 - [ ] Complete TDD implementation of core game logic library
@@ -138,13 +168,14 @@ npm run lint                # ESLint + TypeScript checks
 
 ## Claude Code Specific Notes
 - Use `npx expo install` instead of `npm install` for Expo-compatible packages
-- Supabase debugging: Use Supabase Dashboard for realtime monitoring, check RLS policies
+- **Supabase Cloud Connection**: Connect directly to Supabase Cloud (vwrkmlgziauzchqpxemq), no local setup required
+- Supabase debugging: Use Supabase Dashboard for realtime monitoring, check RLS policies, SQL Editor for queries
 - React Native performance: Always check `useNativeDriver: true` for animations  
 - Zustand DevTools: Enable only in development builds
 - TypeScript strict mode enabled - handle all type errors before implementation
 - TDD required: Write failing tests first, then implement features
 - Constitution compliance: Keep architecture simple, avoid unnecessary abstractions
-- Supabase local dev: Always test with `npx supabase start` before deployment
+- **Database Migrations**: Apply via Supabase Dashboard or MCP tools, not local migration files
 
 ---
 *Auto-updated by /plan command - Do not edit manually above this line*

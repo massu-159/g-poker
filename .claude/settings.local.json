@@ -1,12 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(scripts/create-new-feature.sh:*)",
-      "WebSearch",
-      "Bash(chmod:*)",
-      "Bash(scripts/setup-plan.sh:*)",
-      "Bash(scripts/check-task-prerequisites.sh:*)",
-      "mcp__serena__list_dir"
+      "Bash(npx expo:*)",
+      "Bash(curl:*)",
+      "Bash(docs/scripts/check-task-prerequisites.sh:*)",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__list_tables"
     ],
     "deny": [],
     "ask": []
