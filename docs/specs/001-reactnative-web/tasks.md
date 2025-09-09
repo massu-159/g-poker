@@ -68,12 +68,12 @@
 - [x] T024 [P] Integration test matchmaking process in tests/integration/test_matchmaking_flow.test.ts
 - [x] T025 [P] Integration test game state synchronization in tests/integration/test_state_sync.test.ts
 
-## Phase 3.5: Data Models (ONLY after tests are failing)
-- [ ] T026 [P] Game entity model with TypeScript interfaces in src/lib/entities/Game.ts
-- [ ] T027 [P] Player entity model with validation in src/lib/entities/Player.ts
-- [ ] T028 [P] Card entity model and enums in src/lib/entities/Card.ts
-- [ ] T029 [P] Round entity model with response types in src/lib/entities/Round.ts
-- [ ] T030 [P] Game logic utility functions in src/lib/gameLogic/index.ts
+## Phase 3.5: Data Models (ONLY after tests are failing) ✅ COMPLETED  
+- [x] T026 [P] Game entity model with TypeScript interfaces in src/lib/entities/Game.ts
+- [x] T027 [P] Player entity model with validation in src/lib/entities/Player.ts
+- [x] T028 [P] Card entity model and enums in src/lib/entities/Card.ts
+- [x] T029 [P] Round entity model with response types in src/lib/entities/Round.ts
+- [x] T030 [P] Game logic utility functions in src/lib/gameLogic/index.ts
 
 ## Phase 3.6: Supabase Services
 - [ ] T031 Supabase client configuration and initialization in src/services/supabase.ts
