@@ -55,20 +55,16 @@ export interface Game extends GameMetadata {
   canJoin: boolean; // true if waiting_for_players and not full
 }
 
-// Database row interface (matches Supabase schema)
+// Database row interface (matches actual Supabase schema)
 export interface GameRow {
   id: string;
-  status: GameStatus;
-  settings: GameSettings;
-  state: GameState;
-  player_ids: string[];
-  current_round: any | null; // JSON stored round data
+  status: string; // GameStatus stored as string
+  settings: any; // JSON stored settings
+  current_turn: string | null;
   winner_id: string | null;
   created_at: string;
   started_at: string | null;
   ended_at: string | null;
-  created_by: string;
-  version: number;
 }
 
 // Create game request interface
@@ -82,12 +78,13 @@ export interface CreateGameRequest {
 export interface UpdateGameRequest {
   gameId: string;
   updates: Partial<{
-    status: GameStatus;
-    state: GameState;
-    currentRound: GameRound;
-    winnerId: string;
+    status: string;
+    current_turn: string | null;
+    winner_id: string | null;
+    started_at: string | null;
+    ended_at: string | null;
   }>;
-  expectedVersion: number; // For optimistic concurrency control
+  expectedVersion?: number; // Optional for optimistic concurrency control
 }
 
 // Game query interface
@@ -146,35 +143,34 @@ export const canJoinGame = (game: Game): boolean => {
 // Game transformation helpers
 export const gameRowToGame = (row: GameRow): Game => ({
   id: row.id,
-  status: row.status,
+  status: row.status as GameStatus,
   settings: row.settings,
-  state: row.state,
-  playerIds: row.player_ids,
-  ...(row.current_round !== null && { currentRound: row.current_round }),
+  state: {
+    currentTurn: row.current_turn || ''
+    // turnStartedAt and lastAction are omitted (undefined) for default state
+  }, // Create default state
+  playerIds: [], // Will be populated by fetching players separately
   ...(row.winner_id !== null && { winnerId: row.winner_id }),
   createdAt: row.created_at,
   ...(row.started_at !== null && { startedAt: row.started_at }),
   ...(row.ended_at !== null && { endedAt: row.ended_at }),
-  createdBy: row.created_by,
-  version: row.version,
+  createdBy: '', // Not stored in current schema
+  version: 1, // Default version
   
   // Computed properties
-  playersCount: row.player_ids.length,
+  playersCount: 0, // Will be computed from players query
   isActive: row.status === 'in_progress',
-  canJoin: row.status === 'waiting_for_players' && row.player_ids.length < 2
+  canJoin: row.status === 'waiting_for_players'
 });
 
-export const gameToGameRow = (game: Game): Omit<GameRow, 'created_at' | 'version'> => ({
+export const gameToGameRow = (game: Game): Omit<GameRow, 'created_at'> => ({
   id: game.id,
   status: game.status,
   settings: game.settings,
-  state: game.state,
-  player_ids: game.playerIds,
-  current_round: game.currentRound || null,
+  current_turn: game.state.currentTurn || null,
   winner_id: game.winnerId || null,
   started_at: game.startedAt || null,
-  ended_at: game.endedAt || null,
-  created_by: game.createdBy
+  ended_at: game.endedAt || null
 });
 
 // Default values

@@ -76,16 +76,12 @@ export interface Player {
 // Database row interface (matches Supabase schema)
 export interface PlayerRow {
   id: string;
+  game_id: string; // Required: each player belongs to a specific game
   device_id: string;
   display_name: string;
-  avatar: string | null;
   is_connected: boolean;
   last_seen: string;
-  connection_id: string | null;
-  preferences: any; // JSON
-  statistics: any; // JSON
-  created_at: string;
-  updated_at: string;
+  joined_at: string;
 }
 
 // Player in game context (includes game-specific state)
@@ -112,6 +108,7 @@ export interface GamePlayerRow {
 export interface CreatePlayerRequest {
   deviceId: string;
   displayName: string;
+  gameId: string; // Required: players are created for specific games
   avatar?: string;
   preferences?: PlayerProfile['preferences'];
 }
@@ -251,30 +248,24 @@ export const playerRowToPlayer = (row: PlayerRow): Player => ({
   id: row.id,
   deviceId: row.device_id,
   profile: {
-    displayName: row.display_name,
-    ...(row.avatar !== null && { avatar: row.avatar }),
-    preferences: row.preferences || {}
+    displayName: row.display_name
   },
   connection: {
     isConnected: row.is_connected,
-    lastSeen: row.last_seen,
-    ...(row.connection_id !== null && { connectionId: row.connection_id })
+    lastSeen: row.last_seen
   },
-  statistics: row.statistics || createDefaultStatistics(),
-  createdAt: row.created_at,
-  updatedAt: row.updated_at
+  statistics: createDefaultStatistics(), // No statistics field in current schema
+  createdAt: row.joined_at, // Use joined_at as creation time
+  updatedAt: row.joined_at // No updated_at in current schema
 });
 
-export const playerToPlayerRow = (player: Player): Omit<PlayerRow, 'created_at' | 'updated_at'> => ({
+export const playerToPlayerRow = (player: Player, gameId: string): Omit<PlayerRow, 'joined_at'> => ({
   id: player.id,
+  game_id: gameId,
   device_id: player.deviceId,
   display_name: player.profile.displayName,
-  avatar: player.profile.avatar || null,
   is_connected: player.connection.isConnected,
-  last_seen: player.connection.lastSeen,
-  connection_id: player.connection.connectionId || null,
-  preferences: player.profile.preferences || {},
-  statistics: player.statistics
+  last_seen: player.connection.lastSeen
 });
 
 export const gamePlayerRowToGamePlayer = (

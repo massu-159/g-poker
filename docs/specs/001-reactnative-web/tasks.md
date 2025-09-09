@@ -75,12 +75,12 @@
 - [x] T029 [P] Round entity model with response types in src/lib/entities/Round.ts
 - [x] T030 [P] Game logic utility functions in src/lib/gameLogic/index.ts
 
-## Phase 3.6: Supabase Services
-- [ ] T031 Supabase client configuration and initialization in src/services/supabase.ts
-- [ ] T032 Game service for database operations in src/services/gameService.ts
-- [ ] T033 Realtime service for WebSocket subscriptions in src/services/realtimeService.ts
-- [ ] T034 Authentication service for player sessions in src/services/authService.ts
-- [ ] T035 Matchmaking service integration in src/services/matchmakingService.ts
+## Phase 3.6: Supabase Services ✅ COMPLETED
+- [x] T031 Supabase client configuration and initialization in src/services/supabase.ts
+- [x] T032 Game service for database operations in src/services/gameService.ts
+- [x] T033 Realtime service for WebSocket subscriptions in src/services/realtimeService.ts
+- [x] T034 Authentication service for player sessions in src/services/authService.ts
+- [x] T035 Matchmaking service integration in src/services/matchmakingService.ts
 
 ## Phase 3.7: State Management
 - [ ] T036 [P] Zustand game store with optimistic updates in src/stores/gameStore.ts
