@@ -74,8 +74,8 @@ interface QueueEntry {
 export class MatchmakingService {
   private queue: QueueEntry[] = [];
   private activeMatches: Map<string, string[]> = new Map(); // matchmakingId -> gameId
-  private queueCleanupInterval?: NodeJS.Timeout;
-  private matchmakingTimeouts: Map<string, NodeJS.Timeout> = new Map();
+  private queueCleanupInterval?: ReturnType<typeof setTimeout>;
+  private matchmakingTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
   constructor() {
     // Start queue maintenance

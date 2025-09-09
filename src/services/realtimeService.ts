@@ -7,6 +7,9 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 import { createGameChannel } from './supabase';
 import { PlayerAuth } from '../lib/entities/Player';
 
+// Re-export PlayerAuth for convenience
+export type { PlayerAuth };
+
 // Realtime event types
 export interface GameStateChangeEvent {
   type: 'game_state_change';
@@ -72,6 +75,9 @@ export interface GameSubscriptionCallbacks {
   onConflictResolution?: (event: any) => void;
   onError?: (error: any) => void;
 }
+
+// Alias for React hooks
+export type RealtimeEventHandlers = GameSubscriptionCallbacks;
 
 // Subscription result
 export interface SubscriptionResult {
@@ -555,6 +561,54 @@ export class RealtimeService {
       };
       callback(event);
     }
+  }
+
+  /**
+   * Subscribe to player presence updates
+   */
+  async subscribeToPlayerPresence(
+    gameId: string,
+    callbacks: {
+      onPlayerOnline?: (playerId: string) => void;
+      onPlayerOffline?: (playerId: string) => void;
+    }
+  ): Promise<() => void> {
+    const channel = createGameChannel(gameId);
+    
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const newState = channel.presenceState();
+        
+        // Handle presence changes
+        Object.keys(newState).forEach(playerId => {
+          if (callbacks.onPlayerOnline) {
+            callbacks.onPlayerOnline(playerId);
+          }
+        });
+      })
+      .on('presence', { event: 'join' }, ({ key }) => {
+        if (callbacks.onPlayerOnline) {
+          callbacks.onPlayerOnline(key);
+        }
+      })
+      .on('presence', { event: 'leave' }, ({ key }) => {
+        if (callbacks.onPlayerOffline) {
+          callbacks.onPlayerOffline(key);
+        }
+      })
+      .subscribe();
+
+    return () => channel.unsubscribe();
+  }
+
+  /**
+   * Ping server to check connection
+   */
+  async ping(): Promise<void> {
+    // Simple ping implementation - could be a lightweight Supabase operation
+    const channel = createGameChannel('ping');
+    await channel.subscribe();
+    await channel.unsubscribe();
   }
 }
 

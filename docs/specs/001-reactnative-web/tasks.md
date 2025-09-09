@@ -82,12 +82,12 @@
 - [x] T034 Authentication service for player sessions in src/services/authService.ts
 - [x] T035 Matchmaking service integration in src/services/matchmakingService.ts
 
-## Phase 3.7: State Management
-- [ ] T036 [P] Zustand game store with optimistic updates in src/stores/gameStore.ts
-- [ ] T037 [P] Zustand user store for player profile in src/stores/userStore.ts
-- [ ] T038 [P] TanStack Query setup and configuration in src/lib/queryClient.ts
-- [ ] T039 React hooks for game state management in src/hooks/useGameState.ts
-- [ ] T040 React hooks for realtime subscriptions in src/hooks/useRealtimeSubscription.ts
+## Phase 3.7: State Management ✅ COMPLETED
+- [x] T036 [P] Zustand game store with optimistic updates in src/stores/gameStore.ts
+- [x] T037 [P] Zustand user store for player profile in src/stores/userStore.ts
+- [x] T038 [P] TanStack Query setup and configuration in src/lib/queryClient.ts
+- [x] T039 React hooks for game state management in src/hooks/useGameState.ts
+- [x] T040 React hooks for realtime subscriptions in src/hooks/useRealtimeSubscription.ts
 
 ## Phase 3.8: UI Components
 - [ ] T041 [P] Card component with creature types in src/components/cards/Card.tsx
