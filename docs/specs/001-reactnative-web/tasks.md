@@ -45,24 +45,28 @@
 - [x] T010 [P] Create Supabase schema for game_actions table (applied to Cloud DB)
 - [x] T011 Configure Row Level Security policies via MCP tools (applied to Cloud DB)
 
-## Phase 3.3: Contract Tests (TDD) ⚠️ MUST COMPLETE BEFORE 3.4
+## Phase 3.3: Contract Tests (TDD) ✅ COMPLETED
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
-- [ ] T012 [P] Contract test GET /v1/health in tests/contract/rest_api/test_health.test.ts
-- [ ] T013 [P] Contract test POST /v1/games in tests/contract/rest_api/test_create_game.test.ts
-- [ ] T014 [P] Contract test GET /v1/games/{gameId} in tests/contract/rest_api/test_get_game.test.ts
-- [ ] T015 [P] Contract test POST /v1/matchmaking/find in tests/contract/rest_api/test_matchmaking.test.ts
-- [ ] T016 [P] Contract test GET /v1/matchmaking/{id}/status in tests/contract/rest_api/test_matchmaking_status.test.ts
-- [ ] T017 [P] Contract test GET /v1/games/{gameId}/history in tests/contract/rest_api/test_game_history.test.ts
-- [ ] T018 [P] Contract test join-game WebSocket event in tests/contract/websocket_api/test_join_game.test.ts
-- [ ] T019 [P] Contract test play-card WebSocket event in tests/contract/websocket_api/test_play_card.test.ts
-- [ ] T020 [P] Contract test respond-to-round WebSocket event in tests/contract/websocket_api/test_respond_round.test.ts
-- [ ] T021 [P] Contract test game state events in tests/contract/websocket_api/test_game_events.test.ts
+**NOTE: Updated to test Supabase Cloud API instead of custom REST/WebSocket**
+- [x] T012 [P] Contract test Supabase connection in tests/contract/supabase_api/test_supabase_connection.test.ts
+- [x] T013 [P] Contract test game CRUD operations in tests/contract/supabase_api/test_game_operations.test.ts
+- [x] T014 [P] Contract test player operations in tests/contract/supabase_api/test_player_operations.test.ts  
+- [x] T015 [P] Contract test matchmaking service in tests/contract/supabase_api/test_player_operations.test.ts
+- [x] T016 [P] Contract test realtime subscriptions in tests/contract/supabase_api/test_realtime_operations.test.ts
+- [x] T017 [P] Contract test game action recording in tests/contract/supabase_api/test_realtime_operations.test.ts
+- [x] T018 [P] Contract test game history retrieval in tests/contract/supabase_api/test_realtime_operations.test.ts
+- [x] T019 [P] Contract test RLS policy enforcement (all test files)
+- [x] T020 [P] Contract test database constraints (all test files)
+- [x] T021 [P] Contract test authentication/authorization (all test files)
 
-## Phase 3.4: Integration Tests (TDD) ⚠️ MUST COMPLETE BEFORE 3.5
-- [ ] T022 [P] Integration test complete 2-player game flow in tests/integration/test_complete_game_flow.test.ts
-- [ ] T023 [P] Integration test player connection/disconnection in tests/integration/test_connection_handling.test.ts
-- [ ] T024 [P] Integration test matchmaking process in tests/integration/test_matchmaking_flow.test.ts
-- [ ] T025 [P] Integration test game state synchronization in tests/integration/test_state_sync.test.ts
+**TDD RED PHASE VERIFIED**: All tests fail appropriately due to missing implementation ✅
+
+## Phase 3.4: Integration Tests (TDD) ✅ COMPLETED
+**TDD RED PHASE VERIFIED**: All integration tests fail appropriately due to missing implementation ✅
+- [x] T022 [P] Integration test complete 2-player game flow in tests/integration/test_complete_game_flow.test.ts
+- [x] T023 [P] Integration test player connection/disconnection in tests/integration/test_connection_handling.test.ts
+- [x] T024 [P] Integration test matchmaking process in tests/integration/test_matchmaking_flow.test.ts
+- [x] T025 [P] Integration test game state synchronization in tests/integration/test_state_sync.test.ts
 
 ## Phase 3.5: Data Models (ONLY after tests are failing)
 - [ ] T026 [P] Game entity model with TypeScript interfaces in src/lib/entities/Game.ts
