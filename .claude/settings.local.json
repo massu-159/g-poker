@@ -6,7 +6,8 @@
       "Bash(docs/scripts/check-task-prerequisites.sh:*)",
       "mcp__supabase__execute_sql",
       "mcp__supabase__apply_migration",
-      "mcp__supabase__list_tables"
+      "mcp__supabase__list_tables",
+      "Bash(npm test:*)"
     ],
     "deny": [],
     "ask": []

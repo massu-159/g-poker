@@ -50,9 +50,6 @@
   },
   "jest": {
     "preset": "react-native",
-    "setupFilesAfterEnv": [
-      "@testing-library/react-native/cleanup-after-each"
-    ],
     "moduleFileExtensions": [
       "ts",
       "tsx",
@@ -64,7 +61,7 @@
       "^.+\\.(js|jsx|ts|tsx)$": "babel-jest"
     },
     "testRegex": "(/__tests__/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
-    "moduleNameMapping": {
+    "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"
     },
     "collectCoverageFrom": [
