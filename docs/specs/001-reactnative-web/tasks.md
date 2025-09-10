@@ -97,21 +97,21 @@
 - [x] T045 [P] Player area component in src/components/game/PlayerArea.tsx
 - [x] T046 Turn indicator and game status in src/components/game/GameStatus.tsx
 
-## Phase 3.9: Screens ✅
+## Phase 3.9: Screens ✅ COMPLETED
 - [x] T047 Lobby screen with matchmaking in src/screens/LobbyScreen.tsx
 - [x] T048 Game screen with main gameplay in src/screens/GameScreen.tsx
 - [x] T049 Results screen with winner display in src/screens/ResultScreen.tsx
 - [x] T050 Loading screen and connection status in src/screens/LoadingScreen.tsx
 
-## Phase 3.10: Animations
-- [ ] T051 [P] Card dealing animations with Reanimated 3 in src/components/animations/CardDealing.tsx
-- [ ] T052 [P] Card playing/moving animations in src/components/animations/CardMovement.tsx
-- [ ] T053 [P] UI transition animations in src/components/animations/Transitions.tsx
+## Phase 3.10: Animations ✅ COMPLETED
+- [x] T051 [P] Card dealing animations with Reanimated 3 in src/components/animations/CardDealing.tsx
+- [x] T052 [P] Card playing/moving animations in src/components/animations/CardMovement.tsx
+- [x] T053 [P] UI transition animations in src/components/animations/Transitions.tsx
 
-## Phase 3.11: Navigation and App Structure
-- [ ] T054 Navigation setup with React Navigation in src/navigation/AppNavigator.tsx
-- [ ] T055 App root component with providers in App.tsx
-- [ ] T056 Environment configuration and constants in src/config/environment.ts
+## Phase 3.11: Navigation and App Structure ✅ 
+- [x] T054 Navigation setup with React Navigation in src/navigation/AppNavigator.tsx
+- [x] T055 App root component with providers in App.tsx
+- [x] T056 Environment configuration and constants in src/config/environment.ts
 
 ## Phase 3.12: Polish
 - [ ] T057 [P] Unit tests for game logic in tests/unit/gameLogic.test.ts
