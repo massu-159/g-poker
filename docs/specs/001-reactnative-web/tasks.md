@@ -89,13 +89,13 @@
 - [x] T039 React hooks for game state management in src/hooks/useGameState.ts
 - [x] T040 React hooks for realtime subscriptions in src/hooks/useRealtimeSubscription.ts
 
-## Phase 3.8: UI Components
-- [ ] T041 [P] Card component with creature types in src/components/cards/Card.tsx
-- [ ] T042 [P] Hand component for displaying player cards in src/components/cards/Hand.tsx
-- [ ] T043 [P] Penalty pile component in src/components/game/PenaltyPile.tsx
-- [ ] T044 [P] Game board layout component in src/components/game/GameBoard.tsx
-- [ ] T045 [P] Player area component in src/components/game/PlayerArea.tsx
-- [ ] T046 Turn indicator and game status in src/components/game/GameStatus.tsx
+## Phase 3.8: UI Components ✅ COMPLETED
+- [x] T041 [P] Card component with creature types in src/components/cards/Card.tsx
+- [x] T042 [P] Hand component for displaying player cards in src/components/cards/Hand.tsx
+- [x] T043 [P] Penalty pile component in src/components/game/PenaltyPile.tsx
+- [x] T044 [P] Game board layout component in src/components/game/GameBoard.tsx
+- [x] T045 [P] Player area component in src/components/game/PlayerArea.tsx
+- [x] T046 Turn indicator and game status in src/components/game/GameStatus.tsx
 
 ## Phase 3.9: Screens
 - [ ] T047 Lobby screen with matchmaking in src/screens/LobbyScreen.tsx
