@@ -97,11 +97,11 @@
 - [x] T045 [P] Player area component in src/components/game/PlayerArea.tsx
 - [x] T046 Turn indicator and game status in src/components/game/GameStatus.tsx
 
-## Phase 3.9: Screens
-- [ ] T047 Lobby screen with matchmaking in src/screens/LobbyScreen.tsx
-- [ ] T048 Game screen with main gameplay in src/screens/GameScreen.tsx
-- [ ] T049 Results screen with winner display in src/screens/ResultScreen.tsx
-- [ ] T050 Loading screen and connection status in src/screens/LoadingScreen.tsx
+## Phase 3.9: Screens ✅
+- [x] T047 Lobby screen with matchmaking in src/screens/LobbyScreen.tsx
+- [x] T048 Game screen with main gameplay in src/screens/GameScreen.tsx
+- [x] T049 Results screen with winner display in src/screens/ResultScreen.tsx
+- [x] T050 Loading screen and connection status in src/screens/LoadingScreen.tsx
 
 ## Phase 3.10: Animations
 - [ ] T051 [P] Card dealing animations with Reanimated 3 in src/components/animations/CardDealing.tsx
