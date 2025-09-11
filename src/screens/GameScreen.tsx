@@ -23,18 +23,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Card as CardEntity } from '../lib/entities/Card';
-// Mock stores for testing - replace with real stores when navigation is implemented  
-let useGameStore: any;
-let useUserStore: any;
-
-try {
-  useGameStore = require('../components/MockProviders').useGameStore;
-  useUserStore = require('../components/MockProviders').useUserStore;
-} catch {
-  // Fallback to real stores if MockProviders not available
-  useGameStore = require('../stores/gameStore').useGameStore;
-  useUserStore = require('../stores/userStore').useUserStore;
-}
+import { useGameStore, useGameActions } from '../stores/gameStore';
+import { useUserStore } from '../stores/userStore';
 import GameBoard from '../components/game/GameBoard';
 import LoadingScreen from './LoadingScreen';
 

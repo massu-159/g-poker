@@ -3,7 +3,7 @@
  * Main entry point for players to create/join games and manage matchmaking
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -28,18 +28,9 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Game } from '../lib/entities/Game';
-// Mock stores for testing - replace with real stores when navigation is implemented
-let useGameStore: any;
-let useUserStore: any;
-
-try {
-  useGameStore = require('../components/MockProviders').useGameStore;
-  useUserStore = require('../components/MockProviders').useUserStore;
-} catch {
-  // Fallback to real stores if MockProviders not available
-  useGameStore = require('../stores/gameStore').useGameStore;
-  useUserStore = require('../stores/userStore').useUserStore;
-}
+import { useGameStore, useGameActions } from '../stores/gameStore';
+import { useUserStore } from '../stores/userStore';
+import { shallow } from 'zustand/shallow';
 
 // Animation configurations
 const SPRING_CONFIG = {
@@ -63,24 +54,27 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   testID,
 }) => {
   
-  // State management
-  const { 
-    games, 
-    currentGame, 
-    connectionStatus,
-    isLoading,
-    error,
-    createGame,
-    joinGame,
-    leaveGame,
-    refreshGames,
-  } = useGameStore();
+  // State management with individual selectors to prevent infinite loops
+  const games = useGameStore(state => state.games) || [];
+  const currentGame = useGameStore(state => state.game);
+  const connectionStatus = useGameStore(state => state.connectionStatus);
+  const isLoading = useGameStore(state => state.isLoading);
+  const error = useGameStore(state => state.error);
   
-  const { 
-    user, 
-    isAuthenticated,
-    login 
-  } = useUserStore();
+  // Game actions with stable references
+  const createGame = useGameStore(state => state.createGame);
+  const joinGame = useGameStore(state => state.joinGame);
+  const leaveGame = useGameStore(state => state.leaveGame);
+  const refreshGames = useGameStore(state => state.refreshGames);
+  
+  // User state with individual selectors
+  const currentPlayer = useUserStore(state => state.currentPlayer);
+  const authStatus = useUserStore(state => state.authStatus);
+  const authenticateAnonymously = useUserStore(state => state.authenticateAnonymously);
+  
+  // Derived state
+  const isAuthenticated = authStatus === 'authenticated';
+  const user = currentPlayer;
 
   // Local state
   const [isCreatingGame, setIsCreatingGame] = useState(false);
@@ -95,7 +89,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   useEffect(() => {
     if (isAuthenticated) {
       refreshGames();
-      const interval = setInterval(refreshGames, 10000); // Refresh every 10 seconds
+      const interval = setInterval(refreshGames, 30000); // Refresh every 30 seconds
       return () => clearInterval(interval);
     }
     return undefined;
@@ -106,7 +100,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
     if (currentGame && currentGame.status === 'in_progress') {
       onNavigateToGame?.(currentGame.id);
     }
-  }, [currentGame, onNavigateToGame]);
+  }, [currentGame?.id, currentGame?.status, onNavigateToGame]);
 
   // Connection status animation
   useEffect(() => {
@@ -122,7 +116,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
     } else {
       connectionPulse.value = withTiming(0, TIMING_CONFIG);
     }
-  }, [connectionStatus, connectionPulse]);
+  }, [connectionStatus]);
 
   // Loading animation
   useEffect(() => {
@@ -135,7 +129,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
     } else {
       refreshSpinner.value = withTiming(0, TIMING_CONFIG);
     }
-  }, [isLoading, refreshSpinner]);
+  }, [isLoading]);
 
   // Animated styles
   const animatedHeaderStyle = useAnimatedStyle(() => ({
@@ -164,7 +158,10 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   // Handle authentication
   const handleLogin = async () => {
     try {
-      await login();
+      // Create a temporary game ID for authentication
+      // In a real app, you might want to show a game selection first
+      const tempGameId = `temp_${Date.now()}`;
+      await authenticateAnonymously(tempGameId, 'ゲスト');
     } catch (err) {
       Alert.alert('エラー', 'ログインに失敗しました。');
     }

@@ -11,7 +11,21 @@
       "Bash(npm run typecheck:*)",
       "Bash(cat:*)",
       "mcp__serena__find_symbol",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "mcp__serena__find_file",
+      "mcp__serena__get_symbols_overview",
+      "Bash(npx tsc:*)",
+      "mcp__supabase__list_projects",
+      "WebSearch",
+      "mcp__supabase__search_docs",
+      "Bash(node:*)",
+      "mcp__supabase__get_anon_key",
+      "Bash(npm install)",
+      "Bash(npx create-expo-app:*)",
+      "Bash(npm install:*)",
+      "WebFetch(domain:docs.expo.dev)",
+      "WebFetch(domain:react-native-google-signin.github.io)",
+      "Bash(npm view:*)"
     ],
     "deny": [],
     "ask": []

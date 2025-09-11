@@ -44,6 +44,7 @@ export enum ConnectionStatus {
 export interface GameStoreState {
   // Core game state
   game: GameWithPlayers | null;
+  games: GameWithPlayers[]; // Available games for lobby
   players: Player[];
   currentPlayer: Player | null;
   isPlayerTurn: boolean;
@@ -81,6 +82,12 @@ export interface GameStoreState {
   handleRoundUpdate: (event: RoundUpdateEvent) => void;
   reconcileOptimisticUpdates: () => void;
   
+  // Lobby management
+  createGame: (config?: any) => Promise<GameWithPlayers>;
+  joinGame: (gameId: string) => Promise<void>;
+  leaveGame: () => Promise<void>;
+  refreshGames: () => Promise<void>;
+  
   // UI state management  
   setSelectedCard: (card: Card | null) => void;
   clearError: () => void;
@@ -93,6 +100,7 @@ export interface GameStoreState {
 // Initial state
 const initialState = {
   game: null,
+  games: [], // Available games list for lobby
   players: [],
   currentPlayer: null,
   isPlayerTurn: false,
@@ -459,6 +467,89 @@ export const useGameStore = create<GameStoreState>()(
 
     setConnectionStatus: (status: ConnectionStatus) => {
       set({ connectionStatus: status });
+    },
+
+    // Lobby management functions
+    createGame: async (config = {}) => {
+      try {
+        set({ isLoading: true, error: null });
+        
+        // Mock implementation for now
+        const newGame = {
+          id: `game_${Date.now()}`,
+          status: 'waiting_for_players',
+          players: [],
+          playerIds: [],
+          ...config
+        };
+        
+        set(state => ({
+          games: [...state.games, newGame],
+          isLoading: false
+        }));
+        
+        return newGame;
+      } catch (error) {
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to create game',
+          isLoading: false 
+        });
+        throw error;
+      }
+    },
+
+    joinGame: async (gameId: string) => {
+      try {
+        set({ isLoading: true, error: null });
+        
+        // Mock implementation
+        console.log('Joining game:', gameId);
+        
+        set({ isLoading: false });
+      } catch (error) {
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to join game',
+          isLoading: false 
+        });
+        throw error;
+      }
+    },
+
+    leaveGame: async () => {
+      try {
+        set({ isLoading: true, error: null });
+        
+        // Mock implementation
+        console.log('Leaving game');
+        
+        set({ 
+          game: null,
+          isLoading: false 
+        });
+      } catch (error) {
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to leave game',
+          isLoading: false 
+        });
+        throw error;
+      }
+    },
+
+    refreshGames: async () => {
+      try {
+        set({ isLoading: true, error: null });
+        
+        // Mock implementation - in real app, fetch from server
+        console.log('Refreshing games...');
+        
+        set({ isLoading: false });
+      } catch (error) {
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to refresh games',
+          isLoading: false 
+        });
+        throw error;
+      }
     },
 
     // Reset store state
