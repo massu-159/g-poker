@@ -1,12 +1,11 @@
 /**
  * Authentication Service
- * Manages player authentication, sessions, and profile management using device-based auth
+ * Manages player authentication using traditional OAuth and Email methods
  */
 
 import {
   supabase,
   playersTable,
-  createDeviceSession,
   getCurrentSession,
   signOut,
   formatSupabaseError
@@ -19,17 +18,22 @@ import {
   UpdatePlayerRequest,
   playerRowToPlayer,
   playerToPlayerRow,
-  validateDeviceId,
   validateDisplayName,
   createDefaultStatistics
 } from '../lib/entities/Player';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform, Alert } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
+// OAuth provider types
+export type AuthProvider = 'apple' | 'email';
 
 // Authentication result interfaces
 export interface AuthResult {
   success: boolean;
   data?: {
-    player: Player;
+    player: Player | null;
     session: any;
+    requiresEmailConfirmation?: boolean;
   };
   error?: {
     code: string;
@@ -50,7 +54,7 @@ export interface SessionResult {
   success: boolean;
   data?: {
     isAuthenticated: boolean;
-    player?: Player;
+    player?: Player | null;
     session?: any;
   };
   error?: {
@@ -65,88 +69,129 @@ export interface SessionResult {
 export class AuthService {
 
   /**
-   * Authenticate with device ID (primary authentication method)
+   * Sign in with Apple
    */
-  async authenticateWithDeviceId(deviceId: string, gameId: string, displayName?: string): Promise<AuthResult> {
+  async signInWithApple(): Promise<AuthResult> {
     try {
-      // Validate device ID
-      if (!validateDeviceId(deviceId)) {
+      // Check if Apple Authentication is available
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+      if (!isAvailable) {
         return {
           success: false,
           error: {
-            code: 'INVALID_DEVICE_ID',
-            message: 'Invalid device ID format'
+            code: 'APPLE_AUTH_UNAVAILABLE',
+            message: 'Apple Sign-In is not available on this device'
           }
         };
       }
 
-      // Check if player already exists in this game
-      const existingPlayerResult = await this.getPlayerByDeviceAndGame(deviceId, gameId);
-      
-      if (existingPlayerResult.success && existingPlayerResult.data) {
-        // Player exists, create session and return
-        const sessionResult = await createDeviceSession(deviceId);
-        
-        if (!sessionResult.success) {
-          return {
-            success: false,
-            error: {
-              code: 'SESSION_CREATE_FAILED',
-              message: sessionResult.error || 'Failed to create session'
-            }
-          };
-        }
-
-        // Update last seen
-        await this.updatePlayerConnection(existingPlayerResult.data.id, {
-          isConnected: true,
-          lastSeen: new Date().toISOString()
-        });
-
-        return {
-          success: true,
-          data: {
-            player: existingPlayerResult.data,
-            session: sessionResult.session
-          }
-        };
-      }
-
-      // Player doesn't exist, create new player
-      const createPlayerResult = await this.createPlayer({
-        deviceId,
-        gameId,
-        displayName: displayName || `Player_${deviceId.slice(-6)}`
+      // Request Apple authentication
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
       });
 
-      if (!createPlayerResult.success) {
+      // Sign in to Supabase with Apple ID token
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken!,
+      });
+
+      if (error) {
         return {
           success: false,
-          error: createPlayerResult.error || {
-            code: 'CREATE_PLAYER_FAILED',
-            message: 'Failed to create player'
+          error: {
+            code: 'APPLE_SUPABASE_ERROR',
+            message: error.message
           }
         };
       }
 
-      // Create session for new player
-      const sessionResult = await createDeviceSession(deviceId);
-      
-      if (!sessionResult.success) {
+      if (!data.user || !data.session) {
         return {
           success: false,
           error: {
-            code: 'SESSION_CREATE_FAILED',
-            message: sessionResult.error || 'Failed to create session'
+            code: 'NO_SESSION_CREATED',
+            message: 'Failed to create session'
+          }
+        };
+      }
+
+      // Try to get existing player record (will be null for new users)
+      const player = await this.getOrCreatePlayerFromUser(data.user);
+      
+      // Return success with session, player will be created when joining a game
+      return {
+        success: true,
+        data: {
+          player,
+          session: data.session
+        }
+      };
+
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ERR_REQUEST_CANCELED') {
+        return {
+          success: false,
+          error: {
+            code: 'USER_CANCELED',
+            message: 'Apple Sign-In was canceled'
           }
         };
       }
 
       return {
+        success: false,
+        error: {
+          code: 'APPLE_AUTH_ERROR',
+          message: error instanceof Error ? error.message : 'Apple Sign-In failed'
+        }
+      };
+    }
+  }
+
+
+  /**
+   * Sign in with Email and Password
+   */
+  async signInWithEmail(email: string, password: string): Promise<AuthResult> {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.toLowerCase().trim(),
+        password,
+      });
+
+      if (error) {
+        return {
+          success: false,
+          error: {
+            code: 'EMAIL_AUTH_ERROR',
+            message: error.message
+          }
+        };
+      }
+
+      if (!data.user || !data.session) {
+        return {
+          success: false,
+          error: {
+            code: 'NO_SESSION_CREATED',
+            message: 'Failed to create session'
+          }
+        };
+      }
+
+      // Try to get existing player record (will be null for new users)
+      const player = await this.getOrCreatePlayerFromUser(data.user);
+      
+      // Return success with session, player will be created when joining a game
+      return {
         success: true,
         data: {
-          player: createPlayerResult.data!,
-          session: sessionResult.session
+          player,
+          session: data.session
         }
       };
 
@@ -154,21 +199,114 @@ export class AuthService {
       return {
         success: false,
         error: {
-          code: 'AUTH_EXCEPTION',
-          message: error instanceof Error ? error.message : 'Authentication failed'
+          code: 'EMAIL_AUTH_EXCEPTION',
+          message: error instanceof Error ? error.message : 'Email sign-in failed'
         }
       };
     }
   }
 
   /**
-   * Get current authenticated player for a specific game
+   * Sign up with Email and Password
    */
-  async getCurrentPlayer(gameId: string): Promise<SessionResult> {
+  async signUpWithEmail(email: string, password: string, displayName: string): Promise<AuthResult> {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.toLowerCase().trim(),
+        password,
+        options: {
+          data: {
+            display_name: displayName,
+          }
+        }
+      });
+
+      if (error) {
+        return {
+          success: false,
+          error: {
+            code: 'EMAIL_SIGNUP_ERROR',
+            message: error.message
+          }
+        };
+      }
+
+      if (!data.user) {
+        return {
+          success: false,
+          error: {
+            code: 'NO_USER_CREATED',
+            message: 'Failed to create user account'
+          }
+        };
+      }
+
+      // If email confirmation is required, session will be null
+      if (!data.session) {
+        return {
+          success: true,
+          data: {
+            player: null as Player | null,
+            session: null,
+            requiresEmailConfirmation: true
+          }
+        };
+      }
+
+      // Try to get existing player record (will be null for new users)
+      const player = await this.getOrCreatePlayerFromUser(data.user);
+      
+      // Return success with session, player will be created when joining a game
+      return {
+        success: true,
+        data: {
+          player,
+          session: data.session
+        }
+      };
+
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          code: 'EMAIL_SIGNUP_EXCEPTION',
+          message: error instanceof Error ? error.message : 'Email sign-up failed'
+        }
+      };
+    }
+  }
+
+  /**
+   * Legacy method - kept for backward compatibility
+   * @deprecated Use social auth methods instead
+   */
+  async authenticateWithDeviceId(deviceId: string, gameId: string, displayName?: string): Promise<AuthResult> {
+    // Redirect to email signup as fallback
+    return {
+      success: false,
+      error: {
+        code: 'DEPRECATED_METHOD',
+        message: 'Please use social authentication methods'
+      }
+    };
+  }
+
+  /**
+   * Legacy method - kept for backward compatibility  
+   * @deprecated Use social auth methods instead
+   */
+  async authenticateAnonymously(gameId: string, displayName?: string): Promise<AuthResult> {
+    return this.authenticateWithDeviceId('', gameId, displayName);
+  }
+
+  /**
+   * Get current authenticated player
+   */
+  async getCurrentPlayer(): Promise<SessionResult> {
     try {
       const session = await getCurrentSession();
       
-      if (!session) {
+      if (!session || !session.user) {
         return {
           success: true,
           data: {
@@ -177,37 +315,15 @@ export class AuthService {
         };
       }
 
-      // Extract device ID from session metadata
-      const deviceId = session.user?.user_metadata?.['device_id'];
+      // Get player data from authenticated user
+      const player = await this.getOrCreatePlayerFromUser(session.user);
       
-      if (!deviceId) {
-        return {
-          success: false,
-          error: {
-            code: 'INVALID_SESSION',
-            message: 'Session does not contain device ID'
-          }
-        };
-      }
-
-      // Get player data for specific game
-      const playerResult = await this.getPlayerByDeviceAndGame(deviceId, gameId);
-      
-      if (!playerResult.success || !playerResult.data) {
-        return {
-          success: false,
-          error: playerResult.error || {
-            code: 'PLAYER_NOT_FOUND',
-            message: 'Player not found'
-          }
-        };
-      }
-
+      // Player may be null for new users - they will be created when joining a game
       return {
         success: true,
         data: {
           isAuthenticated: true,
-          player: playerResult.data!,
+          player,
           session
         }
       };
@@ -228,17 +344,7 @@ export class AuthService {
    */
   async createPlayer(request: CreatePlayerRequest): Promise<ProfileResult> {
     try {
-      // Validate inputs
-      if (!validateDeviceId(request.deviceId)) {
-        return {
-          success: false,
-          error: {
-            code: 'INVALID_DEVICE_ID',
-            message: 'Invalid device ID format'
-          }
-        };
-      }
-
+      // Validate display name
       if (!validateDisplayName(request.displayName)) {
         return {
           success: false,
@@ -299,6 +405,66 @@ export class AuthService {
           message: error instanceof Error ? error.message : 'Failed to create player'
         }
       };
+    }
+  }
+
+  /**
+   * Get or create player from authenticated user
+   * Note: Temporarily adapts user auth to existing device-based schema
+   */
+  private async getOrCreatePlayerFromUser(user: any): Promise<Player | null> {
+    try {
+      // Try to get existing player by device ID (use user.id as device_id for now)
+      const deviceId = user.id; // Use user ID as device ID temporarily
+      
+      const { data: existingPlayers, error: getError } = await playersTable()
+        .select('*')
+        .eq('device_id', deviceId);
+
+      // Return first matching player if found
+      if (existingPlayers && existingPlayers.length > 0) {
+        const playerRow = existingPlayers[0];
+        if (playerRow) {
+          return playerRowToPlayer(playerRow);
+        }
+      }
+
+      // If error and not "no rows returned", return null
+      if (getError && getError.code !== 'PGRST116') {
+        console.error('Error fetching player:', getError);
+        return null;
+      }
+
+      // For now, return null since player creation requires a game_id
+      // Players will be created when they join a specific game
+      // This maintains compatibility with existing game flow
+      console.log('Player not found, will be created when joining a game');
+      return null;
+
+    } catch (error) {
+      console.error('Error in getOrCreatePlayerFromUser:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get authentication provider information
+   */
+  async getAuthProvider(): Promise<{ provider: string; isEmailConfirmed: boolean } | null> {
+    try {
+      const session = await getCurrentSession();
+      if (!session?.user) return null;
+
+      const provider = session.user.app_metadata?.provider || 'email';
+      const isEmailConfirmed = session.user.email_confirmed_at != null;
+
+      return {
+        provider,
+        isEmailConfirmed
+      };
+    } catch (error) {
+      console.error('Failed to get auth provider:', error);
+      return null;
     }
   }
 
@@ -511,7 +677,7 @@ export class AuthService {
   async signOut(gameId: string): Promise<{ success: boolean; error?: { code: string; message: string } }> {
     try {
       // Get current player to update connection status
-      const currentPlayerResult = await this.getCurrentPlayer(gameId);
+      const currentPlayerResult = await this.getCurrentPlayer();
       
       if (currentPlayerResult.success && currentPlayerResult.data?.player) {
         // Mark as disconnected

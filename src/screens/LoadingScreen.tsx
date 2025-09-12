@@ -25,18 +25,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Mock stores for testing - replace with real stores when navigation is implemented
-let useGameStore: any;
-let useUserStore: any;
-
-try {
-  useGameStore = require('../components/MockProviders').useGameStore;
-  useUserStore = require('../components/MockProviders').useUserStore;
-} catch {
-  // Fallback to real stores if MockProviders not available
-  useGameStore = require('../stores/gameStore').useGameStore;
-  useUserStore = require('../stores/userStore').useUserStore;
-}
+import { useGameStore, useGameActions } from '../stores/gameStore';
+import { useAuthState } from '../stores/userStore';
 
 // Animation configurations
 const SPRING_CONFIG = {
@@ -80,7 +70,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   
   // State management
   const { connectionStatus, error } = useGameStore();
-  const { isAuthenticated } = useUserStore();
+  const { isAuthenticated } = useAuthState();
 
   // Animation values
   const spinnerRotation = useSharedValue(0);
@@ -182,6 +172,9 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
       const interval = setInterval(animateDots, 1200);
       return () => clearInterval(interval);
     }
+    
+    // Return undefined for error state (satisfies TypeScript)
+    return undefined;
   }, [loadingState, dotsOpacity]);
 
   // Message fade in

@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { LogBox } from 'react-native';
+import { LogBox, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -158,11 +158,13 @@ export default function App() {
       }
     };
 
-    // Add event listeners for error handling
-    if (typeof window !== 'undefined') {
+    // Add event listeners for error handling (Web only)
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.addEventListener('unhandledrejection', handleUnhandledRejection);
       window.addEventListener('error', handleError);
     }
+    
+    // For React Native, we rely on ErrorBoundary for error handling
   };
 
   const handleRetryInitialization = () => {

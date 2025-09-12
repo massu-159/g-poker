@@ -13,9 +13,14 @@ import LobbyScreen from '../screens/LobbyScreen';
 import GameScreen from '../screens/GameScreen';
 import ResultScreen from '../screens/ResultScreen';
 import LoadingScreen from '../screens/LoadingScreen';
+import { LoginScreen } from '../components/auth/LoginScreen';
+
+// Hooks
+import { useUserStore, AuthStatus } from '../stores/userStore';
 
 // Types
 export type RootStackParamList = {
+  Auth: undefined;
   Lobby: undefined;
   Game: {
     gameId: string;
@@ -83,14 +88,28 @@ const screenOptions = {
 };
 
 export const AppNavigator: React.FC = () => {
+  // Check authentication status
+  const authStatus = useUserStore(state => state.authStatus);
+  const isAuthenticated = authStatus === AuthStatus.AUTHENTICATED;
+  
   return (
     <NavigationContainer theme={navigationTheme}>
       <StatusBar style="light" backgroundColor="#1E3A5F" />
       
       <Stack.Navigator
-        initialRouteName="Lobby"
+        initialRouteName={isAuthenticated ? "Lobby" : "Auth"}
         screenOptions={screenOptions}
       >
+        {/* Auth Screen - Anonymous login */}
+        <Stack.Screen 
+          name="Auth" 
+          component={LoginScreen}
+          options={{
+            title: 'ログイン',
+            headerShown: false,
+          }}
+        />
+
         {/* Lobby Screen - Main menu and matchmaking */}
         <Stack.Screen 
           name="Lobby" 

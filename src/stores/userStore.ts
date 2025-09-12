@@ -52,7 +52,7 @@ export interface GameHistory {
 export interface UserStoreState {
   // Authentication
   authStatus: AuthStatus;
-  deviceId: string | null;
+  userId: string | null; // Changed from deviceId to userId
   currentPlayer: Player | null;
   session: any | null;
   
@@ -66,10 +66,12 @@ export interface UserStoreState {
   error: string | null;
   
   // Actions
-  authenticateWithDevice: (deviceId: string, gameId: string, displayName?: string) => Promise<void>;
+  authenticateWithApple: () => Promise<void>;
+  authenticateWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
   updateProfile: (updates: Partial<PlayerProfile>) => Promise<void>;
   updatePreferences: (updates: Partial<UserPreferences>) => void;
-  signOut: (gameId?: string) => Promise<void>;
+  signOut: () => Promise<void>;
   
   // Game history
   addGameResult: (gameResult: {
@@ -110,7 +112,7 @@ const defaultGameHistory: GameHistory = {
 // Initial state
 const initialState = {
   authStatus: AuthStatus.UNKNOWN,
-  deviceId: null,
+  userId: null,
   currentPlayer: null,
   session: null,
   profile: null,
@@ -125,8 +127,8 @@ export const useUserStore = create<UserStoreState>()(
     (set, get) => ({
       ...initialState,
 
-      // Authenticate with device ID
-      authenticateWithDevice: async (deviceId: string, gameId: string, displayName?: string) => {
+      // Authenticate with Apple Sign-In
+      authenticateWithApple: async () => {
         try {
           set({ 
             authStatus: AuthStatus.AUTHENTICATING,
@@ -134,30 +136,106 @@ export const useUserStore = create<UserStoreState>()(
             error: null 
           });
 
-          const result = await authService.authenticateWithDeviceId(deviceId, gameId, displayName);
+          const result = await authService.signInWithApple();
           
           if (result.success && result.data) {
             const { player, session } = result.data;
             
             set({
               authStatus: AuthStatus.AUTHENTICATED,
-              deviceId,
+              userId: session.user?.id || null,
               currentPlayer: player,
               session,
-              profile: player.profile,
+              profile: player?.profile || null,
               isLoading: false
             });
           } else {
             set({
               authStatus: AuthStatus.ERROR,
-              error: result.error?.message || 'Authentication failed',
+              error: typeof result.error === 'string' ? result.error : 'Apple Sign-In failed',
               isLoading: false
             });
           }
         } catch (error) {
           set({
             authStatus: AuthStatus.ERROR,
-            error: error instanceof Error ? error.message : 'Authentication failed',
+            error: error instanceof Error ? error.message : 'Apple Sign-In failed',
+            isLoading: false
+          });
+        }
+      },
+
+      // Authenticate with Email Sign-In
+      authenticateWithEmail: async (email: string, password: string) => {
+        try {
+          set({ 
+            authStatus: AuthStatus.AUTHENTICATING,
+            isLoading: true,
+            error: null 
+          });
+
+          const result = await authService.signInWithEmail(email, password);
+          
+          if (result.success && result.data) {
+            const { player, session } = result.data;
+            
+            set({
+              authStatus: AuthStatus.AUTHENTICATED,
+              userId: session.user?.id || null,
+              currentPlayer: player,
+              session,
+              profile: player?.profile || null,
+              isLoading: false
+            });
+          } else {
+            set({
+              authStatus: AuthStatus.ERROR,
+              error: typeof result.error === 'string' ? result.error : 'Email sign-in failed',
+              isLoading: false
+            });
+          }
+        } catch (error) {
+          set({
+            authStatus: AuthStatus.ERROR,
+            error: error instanceof Error ? error.message : 'Email sign-in failed',
+            isLoading: false
+          });
+        }
+      },
+
+      // Sign up with Email
+      signUpWithEmail: async (email: string, password: string, displayName: string) => {
+        try {
+          set({ 
+            authStatus: AuthStatus.AUTHENTICATING,
+            isLoading: true,
+            error: null 
+          });
+
+          const result = await authService.signUpWithEmail(email, password, displayName);
+          
+          if (result.success && result.data) {
+            const { player, session } = result.data;
+            
+            set({
+              authStatus: AuthStatus.AUTHENTICATED,
+              userId: session.user?.id || null,
+              currentPlayer: player,
+              session,
+              profile: player?.profile || null,
+              isLoading: false
+            });
+          } else {
+            set({
+              authStatus: AuthStatus.ERROR,
+              error: typeof result.error === 'string' ? result.error : 'Email sign-up failed',
+              isLoading: false
+            });
+          }
+        } catch (error) {
+          set({
+            authStatus: AuthStatus.ERROR,
+            error: error instanceof Error ? error.message : 'Email sign-up failed',
             isLoading: false
           });
         }
@@ -211,20 +289,16 @@ export const useUserStore = create<UserStoreState>()(
       },
 
       // Sign out
-      signOut: async (gameId?: string) => {
+      signOut: async () => {
         try {
           set({ isLoading: true });
 
-          if (gameId) {
-            const result = await authService.signOut(gameId);
-            if (!result.success) {
-              console.warn('Sign out failed:', result.error?.message);
-            }
-          }
+          // Use Supabase's built-in signOut for traditional auth
+          await authService.signOut('temp-game-id'); // TODO: Remove gameId requirement from authService.signOut
 
           set({
             authStatus: AuthStatus.UNAUTHENTICATED,
-            deviceId: null,
+            userId: null,
             currentPlayer: null,
             session: null,
             profile: null,
@@ -235,7 +309,7 @@ export const useUserStore = create<UserStoreState>()(
           // Still clear local state even if remote sign out fails
           set({
             authStatus: AuthStatus.UNAUTHENTICATED,
-            deviceId: null,
+            userId: null,
             currentPlayer: null,
             session: null,
             profile: null,
@@ -331,7 +405,7 @@ export const useUserStore = create<UserStoreState>()(
       storage: createJSONStorage(() => AsyncStorage),
       // Only persist certain fields
       partialize: (state) => ({
-        deviceId: state.deviceId,
+        userId: state.userId,
         preferences: state.preferences,
         gameHistory: state.gameHistory,
         profile: state.profile
@@ -361,7 +435,7 @@ export const useUserStore = create<UserStoreState>()(
 // Selectors for common state combinations
 export const useAuthState = () => useUserStore(state => ({
   authStatus: state.authStatus,
-  deviceId: state.deviceId,
+  userId: state.userId,
   currentPlayer: state.currentPlayer,
   isAuthenticated: state.authStatus === AuthStatus.AUTHENTICATED,
   isLoading: state.isLoading,
@@ -375,7 +449,9 @@ export const useUserProfile = () => useUserStore(state => ({
 }));
 
 export const useUserActions = () => useUserStore(state => ({
-  authenticateWithDevice: state.authenticateWithDevice,
+  authenticateWithApple: state.authenticateWithApple,
+  authenticateWithEmail: state.authenticateWithEmail,
+  signUpWithEmail: state.signUpWithEmail,
   updateProfile: state.updateProfile,
   updatePreferences: state.updatePreferences,
   signOut: state.signOut,

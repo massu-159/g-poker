@@ -27,18 +27,8 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CreatureType } from '../lib/entities/Card';
-// Mock stores for testing - replace with real stores when navigation is implemented
-let useGameStore: any;
-let useUserStore: any;
-
-try {
-  useGameStore = require('../components/MockProviders').useGameStore;
-  useUserStore = require('../components/MockProviders').useUserStore;
-} catch {
-  // Fallback to real stores if MockProviders not available
-  useGameStore = require('../stores/gameStore').useGameStore;
-  useUserStore = require('../stores/userStore').useUserStore;
-}
+import { useGameStore } from '../stores/gameStore';
+import { useAuthState, useGameStats } from '../stores/userStore';
 
 // Animation configurations
 const SPRING_CONFIG = {
@@ -90,13 +80,10 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
   const insets = useSafeAreaInsets();
   
   // State management
-  const { 
-    currentGame,
-    gameHistory,
-    clearCurrentGame,
-  } = useGameStore();
-  
-  const { user, updateGameHistory } = useUserStore();
+  const { connectionStatus, error } = useGameStore();
+  const resetGame = useGameStore(state => state.reset);
+  const { currentPlayer } = useAuthState();
+  const { addGameResult } = useGameStats();
 
   // Animation values
   const titleScale = useSharedValue(0);
@@ -106,26 +93,31 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
   const celebrationScale = useSharedValue(0);
 
   // Determine winner and game results
-  const currentPlayer = currentGame?.players?.find((p: any) => p.id === user?.id);
-  const opponentPlayer = currentGame?.players?.find((p: any) => p.id !== user?.id);
-  const userWon = winnerId === user?.id;
-  const gameEnded = currentGame?.status === 'ended';
+  // Note: This component needs to be integrated with actual game store structure
+  const currentGame = null; // Placeholder - to be connected with actual game state
+  const opponentPlayer = null; // Placeholder - to be connected with actual opponent data
+  const userWon = winnerId === currentPlayer?.id;
+  const gameEnded = false; // Placeholder - to be connected with actual game status
 
   // Calculate game statistics
   const gameStats = React.useMemo(() => {
-    if (!currentGame || !currentPlayer || !opponentPlayer) {
-      return {
-        totalRounds: 0,
-        gameDuration: 0,
-        userPenaltyCards: 0,
-        opponentPenaltyCards: 0,
-        userPenaltyBreakdown: {},
-        opponentPenaltyBreakdown: {},
-      };
+    // Default values for when game data is not available
+    const defaultStats = {
+      totalRounds: 0,
+      gameDuration: 0,
+      userPenaltyCards: 0,
+      opponentPenaltyCards: 0,
+      userPenaltyBreakdown: {},
+      opponentPenaltyBreakdown: {},
+    };
+
+    if (!currentGame || !currentPlayer) {
+      return defaultStats;
     }
 
-    const userPenalties = currentPlayer.gameState?.penaltyPile || {};
-    const opponentPenalties = opponentPlayer.gameState?.penaltyPile || {};
+    // Safe access to penalty data
+    const userPenalties = (currentPlayer as any)?.gameState?.penaltyPile || {};
+    const opponentPenalties = (opponentPlayer as any)?.gameState?.penaltyPile || {};
 
     const userPenaltyCount = Object.values(userPenalties)
       .reduce((total: number, cards: any) => total + (Array.isArray(cards) ? cards.length : 0), 0);
@@ -133,22 +125,23 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
     const opponentPenaltyCount = Object.values(opponentPenalties)
       .reduce((total: number, cards: any) => total + (Array.isArray(cards) ? cards.length : 0), 0);
 
-    // Calculate game duration
-    const startTime = new Date(currentGame.createdAt).getTime();
-    const endTime = currentGame.endedAt ? 
-      new Date(currentGame.endedAt).getTime() : 
+    // Calculate game duration with safe access
+    const gameData = currentGame as any;
+    const startTime = gameData?.createdAt ? new Date(gameData.createdAt).getTime() : Date.now();
+    const endTime = gameData?.endedAt ? 
+      new Date(gameData.endedAt).getTime() : 
       Date.now();
     const durationMinutes = Math.round((endTime - startTime) / 60000);
 
     return {
-      totalRounds: gameHistory?.length || 0,
+      totalRounds: 0, // Placeholder - to be connected with actual game data
       gameDuration: durationMinutes,
       userPenaltyCards: userPenaltyCount,
       opponentPenaltyCards: opponentPenaltyCount,
       userPenaltyBreakdown: userPenalties,
       opponentPenaltyBreakdown: opponentPenalties,
     };
-  }, [currentGame, currentPlayer, opponentPlayer, gameHistory]);
+  }, [currentGame, currentPlayer, opponentPlayer]);
 
   // Entrance animations
   useEffect(() => {
@@ -173,17 +166,15 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
 
   // Update user's game history
   useEffect(() => {
-    if (gameEnded && currentGame && user) {
-      updateGameHistory({
-        gameId: currentGame.id,
+    if (gameEnded && currentGame && currentPlayer) {
+      addGameResult({
+        gameId: (currentGame as any)?.id || '',
         result: userWon ? 'win' : 'loss',
-        opponent: opponentPlayer?.profile?.displayName || 'Unknown',
         duration: gameStats.gameDuration,
-        penaltyCards: gameStats.userPenaltyCards,
-        playedAt: new Date().toISOString(),
+        creatureType: 'cockroach', // Placeholder - to be determined from actual game data
       });
     }
-  }, [gameEnded, currentGame, user, userWon, opponentPlayer, gameStats, updateGameHistory]);
+  }, [gameEnded, currentGame, currentPlayer, userWon, gameStats, addGameResult]);
 
   // Animated styles
   const animatedTitleStyle = useAnimatedStyle(() => ({
@@ -209,12 +200,12 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
 
   // Handle navigation actions
   const handleNewGame = () => {
-    clearCurrentGame();
+    resetGame();
     onNavigateToNewGame?.();
   };
 
   const handleBackToLobby = () => {
-    clearCurrentGame();
+    resetGame();
     onNavigateToLobby?.();
   };
 
@@ -319,7 +310,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({
             <Animated.Text style={styles.winnerName}>
               勝者: {userWon ? 
                 (currentPlayer?.profile?.displayName || 'あなた') :
-                (opponentPlayer?.profile?.displayName || '相手')
+                '相手'
               }
             </Animated.Text>
           )}
