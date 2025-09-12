@@ -1,0 +1,92 @@
+{
+  "expo": {
+    "name": "ごきぶりポーカー",
+    "slug": "g-poker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gpoker.app",
+      "buildNumber": "1",
+      "deploymentTarget": "13.0",
+      "requireFullScreen": false,
+      "statusBarStyle": "dark",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "This app does not use the camera.",
+        "NSMicrophoneUsageDescription": "This app does not use the microphone.",
+        "NSLocationWhenInUseUsageDescription": "This app does not use location services.",
+        "CFBundleAllowMixedLocalizations": true,
+        "CFBundleLocalizations": ["ja", "en"]
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "associatedDomains": ["applinks:gpoker.app"]
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.gpoker.app",
+      "versionCode": 1,
+      "compileSdkVersion": 34,
+      "targetSdkVersion": 34,
+      "minSdkVersion": 21,
+      "permissions": [
+        "INTERNET",
+        "WAKE_LOCK"
+      ],
+      "blockedPermissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "gpoker.app"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
+      "playStoreUrl": "https://play.google.com/store/apps/details?id=com.gpoker.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "jsEngine": "jsc",
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id-here"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/your-eas-project-id-here"
+    }
+  }
+}
