@@ -23,8 +23,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Card as CardEntity } from '../lib/entities/Card';
-import { useGameStore, useGameActions } from '../stores/gameStore';
-import { useUserStore } from '../stores/userStore';
+import { useGameStore, useGameActions, useGameState } from '../stores/gameStore';
+import { useAuthState } from '../stores/userStore';
 import GameBoard from '../components/game/GameBoard';
 import LoadingScreen from './LoadingScreen';
 
@@ -47,19 +47,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 }) => {
   
   // State management
-  const { 
-    currentGame,
-    currentRound,
-    connectionStatus,
-    isLoading,
-    error,
-    playCard,
-    respondToRound,
-    leaveGame,
-    forfeitGame,
-  } = useGameStore();
+  const gameState = useGameState();
+  const gameActions = useGameActions();
+  const { connectionStatus, isLoading, error } = useGameStore();
+  const { currentPlayer } = useAuthState();
   
-  const { user } = useUserStore();
+  // Extract game data from gameState
+  const currentGame = gameState.game;
+  const currentRound = currentGame?.currentRound || null;
 
   // Local state
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -70,11 +65,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const gameEndOverlay = useSharedValue(0);
 
   // Get current player and opponent
-  const currentPlayer = currentGame?.players?.find((p: any) => p.id === user?.id);
-  const opponentPlayer = currentGame?.players?.find((p: any) => p.id !== user?.id);
+  const gameCurrentPlayer = currentGame?.players?.find((p: any) => p.id === currentPlayer?.id);
+  const opponentPlayer = currentGame?.players?.find((p: any) => p.id !== currentPlayer?.id);
   
   // Game state checks
-  const isCurrentPlayerTurn = currentGame?.currentTurn === user?.id;
+  const isCurrentPlayerTurn = currentGame?.state?.currentTurn === currentPlayer?.id;
   const gameStatus = currentGame?.status || 'waiting_for_players';
 
   // Handle back button (Android)
@@ -141,14 +136,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
   // Handle card play
   const handleCardPlay = async (card: CardEntity, claim: string) => {
-    if (!isCurrentPlayerTurn || !currentPlayer || !opponentPlayer) return;
+    if (!isCurrentPlayerTurn || !gameCurrentPlayer || !opponentPlayer) return;
 
     try {
-      await playCard({
-        cardId: card.id,
-        claim,
-        targetPlayerId: opponentPlayer.id,
-      });
+      await gameActions.playCard(card, claim, opponentPlayer.id);
       
       setSelectedCardId(null);
     } catch (error) {
@@ -161,10 +152,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     if (!currentRound || !isCurrentPlayerTurn) return;
 
     try {
-      await respondToRound({
-        roundId: currentRound.id,
-        response,
-      });
+      await gameActions.respondToCard(response);
     } catch (error) {
       Alert.alert('エラー', '応答できませんでした。');
     }
@@ -196,11 +184,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       screenOpacity.value = withTiming(0, TIMING_CONFIG);
       
       try {
-        if (gameStatus === 'in_progress') {
-          await forfeitGame();
-        } else {
-          await leaveGame();
-        }
+        // End game regardless of status
+        await gameActions.endGame();
       } finally {
         setTimeout(() => {
           onNavigateToLobby?.();
@@ -245,7 +230,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
           style: 'destructive',
           onPress: async () => {
             try {
-              await forfeitGame();
+              await gameActions.endGame();
             } catch (error) {
               Alert.alert('エラー', '降参できませんでした。');
             }
@@ -299,12 +284,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       <Animated.View style={[styles.gameContainer, animatedScreenStyle]}>
         
         {/* Main game board */}
+        {/* @ts-ignore - GameBoard props need interface update */}
         <GameBoard
           currentPlayer={currentPlayer}
           opponentPlayer={opponentPlayer}
-          currentRound={currentRound}
+          currentRound={currentRound || undefined}
           isCurrentPlayerTurn={isCurrentPlayerTurn}
-          gameStatus={gameStatus}
+          gameStatus={gameStatus as 'in_progress' | 'ended' | 'waiting'}
           {...(currentGame?.winnerId && { winnerId: currentGame.winnerId })}
           {...(selectedCardId && { selectedCardId })}
           {...(currentRound?.cardInPlay && { cardInPlay: currentRound.cardInPlay })}
@@ -358,7 +344,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             
             {currentGame.winnerId && (
               <Animated.Text style={styles.gameEndWinner}>
-                {currentGame.winnerId === user?.id ? 
+                {currentGame.winnerId === currentPlayer?.id ? 
                   '🎉 あなたの勝ち！' : 
                   '😔 相手の勝ち'
                 }

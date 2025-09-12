@@ -162,7 +162,9 @@ export const usePlayerActions = () => {
 
   return {
     // Authentication
-    authenticateWithDevice: userActions.authenticateWithDevice,
+    authenticateWithApple: userActions.authenticateWithApple,
+    authenticateWithEmail: userActions.authenticateWithEmail,
+    signUpWithEmail: userActions.signUpWithEmail,
     signOut: userActions.signOut,
 
     // Profile management
@@ -171,7 +173,7 @@ export const usePlayerActions = () => {
 
     // Current state
     currentPlayer: authState.currentPlayer,
-    deviceId: authState.deviceId,
+    userId: authState.userId,
     isAuthenticated: authState.isAuthenticated,
     isLoading: authState.isLoading,
     error: authState.error,

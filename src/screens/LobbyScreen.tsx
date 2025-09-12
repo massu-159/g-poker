@@ -29,7 +29,7 @@ import Animated, {
 
 import { Game } from '../lib/entities/Game';
 import { useGameStore, useGameActions } from '../stores/gameStore';
-import { useUserStore } from '../stores/userStore';
+import { useAuthState } from '../stores/userStore';
 import { shallow } from 'zustand/shallow';
 
 // Animation configurations
@@ -68,12 +68,9 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   const refreshGames = useGameStore(state => state.refreshGames);
   
   // User state with individual selectors
-  const currentPlayer = useUserStore(state => state.currentPlayer);
-  const authStatus = useUserStore(state => state.authStatus);
-  const authenticateAnonymously = useUserStore(state => state.authenticateAnonymously);
+  const { currentPlayer, authStatus, isAuthenticated } = useAuthState();
   
-  // Derived state
-  const isAuthenticated = authStatus === 'authenticated';
+  // User reference
   const user = currentPlayer;
 
   // Local state
@@ -156,15 +153,15 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   }));
 
   // Handle authentication
-  const handleLogin = async () => {
-    try {
-      // Create a temporary game ID for authentication
-      // In a real app, you might want to show a game selection first
-      const tempGameId = `temp_${Date.now()}`;
-      await authenticateAnonymously(tempGameId, 'ゲスト');
-    } catch (err) {
-      Alert.alert('エラー', 'ログインに失敗しました。');
-    }
+  const handleLogin = () => {
+    Alert.alert(
+      'ログインが必要です',
+      'ゲームを始めるには、Apple ID またはメールアドレスでログインしてください。',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { text: 'ログイン画面へ', onPress: () => onNavigateToSettings?.() }
+      ]
+    );
   };
 
   // Handle game creation

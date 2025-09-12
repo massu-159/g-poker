@@ -530,6 +530,17 @@ export class MatchmakingService {
       // Initialize game with players and deal cards
       const player1 = authResult1.data!.player;
       const player2 = authResult2.data!.player;
+      
+      if (!player1 || !player2) {
+        return {
+          success: false,
+          error: {
+            code: 'PLAYER_NOT_FOUND',
+            message: 'One or both players not found after authentication'
+          }
+        };
+      }
+      
       const initResult = initializeGame(game.id, player1, player2, gameSettings);
       
       if (!initResult.success) {

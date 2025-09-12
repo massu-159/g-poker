@@ -117,11 +117,11 @@
 - [x] T057 [P] Unit tests for game logic in tests/unit/gameLogic.test.ts
 - [x] T058 [P] Unit tests for utility functions in tests/unit/utils.test.ts
 - [x] T059 [P] Component tests with React Native Testing Library in tests/unit/components/
-- [ ] T060 Performance optimization and monitoring in src/lib/performance.ts
-- [ ] T061 Error boundary and error handling in src/components/ErrorBoundary.tsx
-- [ ] T062 Offline storage with SQLite in src/services/storageService.ts
-- [ ] T063 App build configuration for iOS and Android
-- [ ] T064 Update CLAUDE.md with React Native development context
+- [x] T060 Performance optimization and monitoring in src/lib/performance.ts
+- [x] T061 Error boundary and error handling in src/components/ErrorBoundary.tsx
+- [x] T062 Offline storage with SQLite in src/services/storageService.ts
+- [x] T063 App build configuration for iOS and Android
+- [x] T064 Update CLAUDE.md with React Native development context
 
 ## Dependencies
 

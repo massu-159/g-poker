@@ -477,7 +477,7 @@ export const respondToRound = (
         updatedGame,
         updatedPlayers,
         gameEnded,
-        winner
+        ...(winner && { winner })
       }
     };
     
@@ -500,7 +500,11 @@ export const getPlayerTotalPenaltyCount = (penaltyPile: PlayerGameState['penalty
 export const getNextPlayer = (game: Game, currentPlayerId: string): string => {
   const currentIndex = game.playerIds.indexOf(currentPlayerId);
   const nextIndex = (currentIndex + 1) % game.playerIds.length;
-  return game.playerIds[nextIndex];
+  const nextPlayer = game.playerIds[nextIndex];
+  if (!nextPlayer) {
+    throw new Error('Invalid game state: no next player found');
+  }
+  return nextPlayer;
 };
 
 export const isPlayerTurn = (game: Game, playerId: string): boolean => {
