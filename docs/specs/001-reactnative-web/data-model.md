@@ -1,357 +1,434 @@
-# Data Model: ごきぶりポーカー React Native App
+# Data Model: ごきぶりポーカー React Native App - Enterprise Architecture
 
-## Core Entities
+## Overview
 
-### Game Entity
-Represents a single multiplayer game session between 2 players.
+This document describes the enterprise-grade data architecture for the ごきぶりポーカー multiplayer game, following Discord/Steam/League of Legends style security patterns with secure indirection and proper domain separation.
 
-```typescript
-interface Game {
-  id: string;                    // Unique game identifier
-  status: GameStatus;            // Current game state
-  players: Player[];             // Array of 2 players
-  deck: Card[];                  // Hidden cards (6 cards not dealt)
-  currentTurn: string;           // Player ID whose turn it is
-  currentRound?: Round;          // Active card exchange round
-  createdAt: Date;              // Game creation timestamp
-  startedAt?: Date;             // Game start timestamp
-  endedAt?: Date;               // Game completion timestamp
-  winnerId?: string;            // Winner player ID (when ended)
-  gameSettings: GameSettings;   // Configuration for this game
-}
+**Authentication Flow**: `auth.users` → `profiles` → `public_profiles` → `players`
 
-enum GameStatus {
-  WAITING_FOR_PLAYERS = 'waiting_for_players',
-  IN_PROGRESS = 'in_progress',
-  ENDED = 'ended',
-  ABANDONED = 'abandoned'
-}
+## Core Database Tables
 
-interface GameSettings {
-  winCondition: number;         // Number of same-type cards to lose (default: 3)
-  turnTimeLimit: number;        // Turn timeout in seconds (default: 60)
-  reconnectionGracePeriod: number; // Seconds to wait for reconnection
-}
-```
+### 1. Authentication & User Management
 
-**Validation Rules**:
-- Game must have exactly 2 players when status is IN_PROGRESS
-- currentTurn must reference valid player ID
-- Deck must contain exactly 6 cards when game starts
-- winnerId can only be set when status is ENDED
+#### `auth.users` (Supabase Auth Table)
+- **Purpose**: Core authentication, managed by Supabase Auth
+- **Security**: Never directly referenced in application logic
+- **Contains**: email, encrypted password, metadata
 
-**State Transitions**:
-```
-WAITING_FOR_PLAYERS → IN_PROGRESS (when 2 players joined)
-IN_PROGRESS → ENDED (when player reaches win condition)
-IN_PROGRESS → ABANDONED (on player disconnect timeout)
-ENDED → [terminal state]
-ABANDONED → [terminal state]
-```
-
-### Player Entity
-Represents a player in a game session with their cards and connection state.
-
-```typescript
-interface Player {
-  id: string;                   // Unique player identifier
-  gameId: string;              // Reference to current game
-  deviceId: string;            // Device-based authentication
-  displayName: string;         // Player display name
-  hand: Card[];                // Private cards in hand (max 9 initially)
-  penaltyPile: PenaltyPile;    // Public penalty cards by creature type
-  isConnected: boolean;        // WebSocket connection status
-  lastSeen: Date;              // Last activity timestamp
-  joinedAt: Date;              // When player joined this game
-}
-
-interface PenaltyPile {
-  [CreatureType.COCKROACH]: Card[];
-  [CreatureType.MOUSE]: Card[];
-  [CreatureType.BAT]: Card[];
-  [CreatureType.FROG]: Card[];
-}
-```
-
-**Validation Rules**:
-- Player hand cannot exceed 9 cards initially
-- Player cannot have more than 2 penalty cards of same creature type
-- displayName must be 1-20 characters, alphanumeric + spaces
-- deviceId must be unique per active game
-
-### Card Entity
-Represents individual cards in the game deck.
-
-```typescript
-interface Card {
-  id: string;                   // Unique card identifier
-  creatureType: CreatureType;   // Type of creature on card
-  imageUrl: string;            // Card artwork URL
-  location: CardLocation;       // Current card location
-  ownerId?: string;            // Player ID if in hand/penalty pile
-}
-
-enum CreatureType {
-  COCKROACH = 'cockroach',     // ゴキブリ
-  MOUSE = 'mouse',             // ネズミ  
-  BAT = 'bat',                 // コウモリ
-  FROG = 'frog'                // カエル
-}
-
-enum CardLocation {
-  DECK = 'deck',               // Hidden in deck (6 cards)
-  HAND = 'hand',               // In player's private hand
-  PENALTY = 'penalty',         // In player's public penalty pile
-  IN_PLAY = 'in_play'          // Currently being exchanged
-}
-```
-
-**Validation Rules**:
-- Exactly 6 cards of each CreatureType (24 total)
-- ownerId required when location is HAND or PENALTY
-- ownerId must be null when location is DECK
-- Only one card can have location IN_PLAY at a time per game
-
-### Round Entity
-Represents a single card exchange interaction between players.
-
-```typescript
-interface Round {
-  id: string;                   // Unique round identifier
-  gameId: string;              // Reference to parent game
-  cardInPlay: Card;            // Card being passed
-  initiatingPlayerId: string;   // Player who started the round
-  targetPlayerId: string;      // Player receiving the card
-  claim: CreatureType;         // Claimed creature type (may be false)
-  response?: RoundResponse;    // Target player's response
-  outcome?: RoundOutcome;      // Final resolution
-  createdAt: Date;             // Round start time
-  completedAt?: Date;          // Round completion time
-}
-
-interface RoundResponse {
-  type: ResponseType;
-  timestamp: Date;
-  playerId: string;
-}
-
-enum ResponseType {
-  BELIEVE = 'believe',         // Player believes the claim
-  DISBELIEVE = 'disbelieve',   // Player thinks claim is false
-  PASS_BACK = 'pass_back'      // Player passes card back
-}
-
-interface RoundOutcome {
-  penaltyReceiver: string;     // Player ID who receives penalty card
-  correctGuess: boolean;       // Whether guess was correct (if applicable)
-  gameEnding: boolean;         // Whether this round ended the game
-}
-```
-
-**Validation Rules**:
-- initiatingPlayerId must be current turn player
-- targetPlayerId must be the other player in game
-- claim can be any CreatureType (truthful or false)
-- response required to complete round
-- outcome calculated server-side based on response and actual card type
-
-## Derived Data and Relationships
-
-### Game State Calculations
-```typescript
-interface GameStateView {
-  // Calculated from entities above
-  isMyTurn: boolean;           // Based on currentTurn vs current player
-  opponentPenaltyCounts: {     // Count of penalty cards by type
-    [CreatureType]: number;
-  };
-  myPenaltyCounts: {
-    [CreatureType]: number;
-  };
-  cardsRemainingInHand: number;
-  gameProgress: number;        // 0-100% based on penalty accumulation
-  canEndGame: boolean;         // Either player close to losing
-}
-```
-
-### Supabase Realtime Event Payloads
-```typescript
-// Database Operations (replace WebSocket events)
-interface DatabaseOperations {
-  // Join game operation
-  joinGame: {
-    table: 'game_players';
-    operation: 'INSERT';
-    data: {
-      game_id: string;
-      player_id: string;
-      display_name: string;
-    };
-  };
-  
-  // Play card operation
-  playCard: {
-    table: 'game_actions';
-    operation: 'INSERT';
-    data: {
-      game_id: string;
-      player_id: string;
-      action_type: 'play_card';
-      action_data: {
-        card_id: string;
-        target_player_id: string;
-        claim: CreatureType;
-      };
-    };
-  };
-  
-  // Respond to round operation
-  respondToRound: {
-    table: 'game_actions';
-    operation: 'INSERT';
-    data: {
-      game_id: string;
-      player_id: string;
-      action_type: 'respond_round';
-      action_data: {
-        round_id: string;
-        response: ResponseType;
-      };
-    };
-  };
-}
-
-// Realtime Subscriptions (replace Server → Client events)
-interface RealtimeSubscriptions {
-  // Game state changes
-  gameStateChanges: {
-    channel: `game-${string}`;
-    table: 'games';
-    filter: `id=eq.${string}`;
-    events: ['INSERT', 'UPDATE', 'DELETE'];
-  };
-  
-  // Game actions (card plays, responses)
-  gameActions: {
-    channel: `game-${string}`;
-    table: 'game_actions';
-    filter: `game_id=eq.${string}`;
-    events: ['INSERT'];
-  };
-  
-  // Player presence
-  playerPresence: {
-    channel: `game-${string}`;
-    presence: {
-      player_id: string;
-      last_seen: string;
-    };
-  };
-}
-```
-
-## Data Flow Patterns
-
-### Game Initialization Flow
-1. Player requests to join game (matchmaking or specific game ID)
-2. Server creates Game entity with WAITING_FOR_PLAYERS status
-3. When 2nd player joins:
-   - Game status → IN_PROGRESS
-   - Deal 9 cards to each player
-   - Set 6 cards as hidden deck
-   - Randomly select starting player
-   - Send initial game-state-update to both clients
-
-### Turn-Based Action Flow
-1. Current player plays card → play-card event
-2. Server creates Round entity
-3. Target player receives round-started event
-4. Target player responds → respond-to-round event  
-5. Server calculates outcome, updates penalty piles
-6. Server checks win/loss conditions
-7. Both players receive round-completed event
-8. If game continues, next turn begins
-
-### State Synchronization Strategy
-- **Authoritative Server**: All game logic runs on server
-- **Optimistic Updates**: Client immediately updates UI, server confirms
-- **Event Sourcing**: Each action creates immutable Round record
-- **Full State Sync**: Periodic full game state broadcast for consistency
-
-## Storage Requirements
-
-### Server Database (PostgreSQL)
+#### `profiles` (Private User Data)
 ```sql
--- Games table
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),    -- Secure surrogate key
+  user_id UUID UNIQUE REFERENCES auth.users(id),   -- Hidden auth reference
+  device_id TEXT,                                   -- Device identification
+  email TEXT,                                       -- User email
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+**RLS**: Strict - users can only access their own profile
+**Access Pattern**: Used internally for user account management
+
+#### `public_profiles` (Public Player Data)
+```sql
+CREATE TABLE public_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id UUID UNIQUE REFERENCES profiles(id),
+  display_name VARCHAR(20) NOT NULL CHECK (
+    length(display_name) >= 1 AND 
+    length(display_name) <= 20 AND
+    display_name ~ '^[a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\s_-]+$'
+  ),
+  avatar TEXT,
+  bio TEXT CHECK (length(bio) <= 500),
+  game_preferences JSONB DEFAULT '{
+    "sound": true,
+    "animations": true, 
+    "auto_pass_back": false,
+    "show_statistics": true
+  }',
+  privacy_settings JSONB DEFAULT '{
+    "show_stats": true,
+    "show_online_status": true,
+    "allow_friend_requests": true
+  }',
+  statistics JSONB DEFAULT '{
+    "wins": 0,
+    "losses": 0,
+    "win_rate": 0,
+    "fastest_win": null,
+    "total_games": 0,
+    "longest_game": 0,
+    "favorite_creature": null,
+    "average_game_duration": 0
+  }',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+**RLS**: Public read, owner write
+**Security**: No direct auth.users references
+
+### 2. Game Management
+
+#### `games` (Game Sessions)
+```sql
 CREATE TABLE games (
-  id UUID PRIMARY KEY,
-  status VARCHAR(50) NOT NULL,
-  current_turn UUID,
-  created_at TIMESTAMP NOT NULL,
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  status VARCHAR(50) DEFAULT 'waiting_for_players' CHECK (
+    status IN ('waiting_for_players', 'in_progress', 'ended', 'abandoned')
+  ),
+  current_turn UUID,                                -- References players.game_player_id
+  created_at TIMESTAMP DEFAULT now(),
   started_at TIMESTAMP,
   ended_at TIMESTAMP,
-  winner_id UUID,
-  settings JSONB NOT NULL
+  winner_id UUID,                                   -- References players.game_player_id
+  settings JSONB DEFAULT '{
+    "winCondition": 3,
+    "turnTimeLimit": 60,
+    "reconnectionGracePeriod": 30
+  }'
 );
+```
+**Security**: Uses game_player_id references (secure indirection)
 
--- Players table  
+#### `players` (Game Participation)
+```sql
 CREATE TABLE players (
-  id UUID PRIMARY KEY,
+  game_player_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),  -- Secure game identity
   game_id UUID REFERENCES games(id),
-  device_id VARCHAR(255) NOT NULL,
-  display_name VARCHAR(20) NOT NULL,
-  is_connected BOOLEAN DEFAULT true,
-  last_seen TIMESTAMP NOT NULL,
-  joined_at TIMESTAMP NOT NULL
+  public_profile_id UUID REFERENCES public_profiles(id),      -- Secure indirection
+  game_role TEXT CHECK (game_role IN ('host', 'player')),
+  is_online BOOLEAN DEFAULT true,
+  last_seen TIMESTAMP DEFAULT now(),
+  joined_at TIMESTAMP DEFAULT now()
 );
+```
+**Security**: 
+- `game_player_id` provides secure indirection from auth system
+- No direct user identification outside of public_profile_id
+- RLS ensures players only see data for their games
 
--- Cards table
+#### `public_players` (Secure View)
+```sql
+CREATE VIEW public_players AS
+SELECT 
+  p.game_player_id,
+  p.game_id,
+  pp.display_name,
+  pp.avatar,
+  p.game_role,
+  p.is_online,
+  p.joined_at
+FROM players p
+JOIN public_profiles pp ON p.public_profile_id = pp.id;
+```
+**Usage**: Primary interface for client applications
+
+### 3. Game Content
+
+#### `cards` (Game Cards)
+```sql
 CREATE TABLE cards (
-  id UUID PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   game_id UUID REFERENCES games(id),
-  creature_type VARCHAR(20) NOT NULL,
-  location VARCHAR(20) NOT NULL,
-  owner_id UUID REFERENCES players(id)
+  creature_type VARCHAR(20) CHECK (
+    creature_type IN ('cockroach', 'mouse', 'bat', 'frog')
+  ),
+  location VARCHAR(20) DEFAULT 'deck' CHECK (
+    location IN ('deck', 'hand', 'penalty', 'in_play')
+  ),
+  owner_id UUID REFERENCES players(game_player_id)  -- Secure player reference
 );
+```
 
--- Rounds table (event sourcing)
+#### `rounds` (Game Rounds)
+```sql
 CREATE TABLE rounds (
-  id UUID PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   game_id UUID REFERENCES games(id),
   card_id UUID REFERENCES cards(id),
-  initiating_player_id UUID REFERENCES players(id),
-  target_player_id UUID REFERENCES players(id),
-  claim VARCHAR(20) NOT NULL,
-  response JSONB,
-  outcome JSONB,
-  created_at TIMESTAMP NOT NULL,
+  initiating_player_id UUID REFERENCES players(game_player_id),
+  target_player_id UUID REFERENCES players(game_player_id),
+  claim VARCHAR(20) CHECK (
+    claim IN ('cockroach', 'mouse', 'bat', 'frog')
+  ),
+  response JSONB,                    -- {type: 'believe'|'disbelieve'|'pass_back', timestamp: ISO}
+  outcome JSONB,                     -- {winner: UUID, loser: UUID, penalty_card: Card}
+  created_at TIMESTAMP DEFAULT now(),
   completed_at TIMESTAMP
 );
 ```
 
-### Client Storage (SQLite)
+#### `game_actions` (Event Sourcing)
 ```sql
--- Cache for offline resilience
-CREATE TABLE cached_game_states (
-  game_id TEXT PRIMARY KEY,
-  state_data TEXT NOT NULL, -- JSON blob
-  last_updated INTEGER NOT NULL
-);
-
--- Queued actions during disconnection
-CREATE TABLE pending_actions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  game_id TEXT NOT NULL,
-  action_type TEXT NOT NULL,
-  action_data TEXT NOT NULL, -- JSON blob
-  created_at INTEGER NOT NULL
+CREATE TABLE game_actions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  game_id UUID REFERENCES games(id),
+  player_id UUID REFERENCES players(game_player_id),
+  action_type VARCHAR(50) CHECK (
+    action_type IN ('join_game', 'play_card', 'respond_round', 'disconnect', 'reconnect')
+  ),
+  action_data JSONB DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT now()
 );
 ```
+**Purpose**: Immutable event log for game actions and audit trail
 
-This data model provides:
-- **Clear entity relationships** with proper foreign keys
-- **Event sourcing** for game actions via Rounds table
-- **Real-time synchronization** through WebSocket events
-- **Offline resilience** with client-side caching
-- **Scalability** through stateless server design
-- **Data integrity** with validation rules and constraints
+## TypeScript Interfaces
+
+### Core Game Entities
+
+```typescript
+interface Game {
+  id: string;
+  status: 'waiting_for_players' | 'in_progress' | 'ended' | 'abandoned';
+  currentTurn?: string;              // game_player_id
+  winnerId?: string;                 // game_player_id
+  settings: {
+    winCondition: number;            // Default: 3
+    turnTimeLimit: number;           // Default: 60 seconds
+    reconnectionGracePeriod: number; // Default: 30 seconds
+  };
+  createdAt: string;
+  startedAt?: string;
+  endedAt?: string;
+}
+
+interface Player {
+  id: string;                        // game_player_id (secure)
+  profile: {
+    displayName: string;
+    avatar?: string;
+    gamePreferences: {
+      sound: boolean;
+      animations: boolean;
+      autoPassBack: boolean;
+    };
+    statistics: PlayerStatistics;
+  };
+  connection: {
+    isOnline: boolean;
+    lastSeen: string;
+    joinedAt: string;
+  };
+  gameState?: {                      // Only when in game
+    hand: Card[];
+    penaltyPile: {
+      cockroach: Card[];
+      mouse: Card[];
+      bat: Card[];
+      frog: Card[];
+    };
+    turnPosition: number;
+    isReady: boolean;
+    score: number;
+    hasLost: boolean;
+  };
+}
+
+interface GamePlayer extends Player {
+  gameId: string;
+  gameRole: 'host' | 'player';
+  gameState: PlayerGameState;       // Always present
+}
+
+interface Card {
+  id: string;
+  creatureType: 'cockroach' | 'mouse' | 'bat' | 'frog';
+  location: 'deck' | 'hand' | 'penalty' | 'in_play';
+  ownerId?: string;                 // game_player_id when owned
+}
+
+interface Round {
+  id: string;
+  gameId: string;
+  cardId: string;
+  initiatingPlayerId: string;       // game_player_id
+  targetPlayerId: string;           // game_player_id
+  claim: 'cockroach' | 'mouse' | 'bat' | 'frog';
+  response?: {
+    type: 'believe' | 'disbelieve' | 'pass_back';
+    timestamp: string;
+  };
+  outcome?: {
+    winner: string;                 // game_player_id
+    loser: string;                  // game_player_id
+    penaltyCard: Card;
+  };
+  createdAt: string;
+  completedAt?: string;
+}
+```
+
+### Database Function Interfaces
+
+```typescript
+// Secure player creation using database function
+interface CreatePlayerRequest {
+  gameId: string;
+  displayName: string;
+  gameRole?: 'host' | 'player';
+}
+
+// Database function: get_or_create_player_for_game
+function get_or_create_player_for_game(
+  p_device_id: string,
+  p_display_name: string, 
+  p_game_id: string,
+  p_game_role?: string
+): string; // Returns game_player_id
+```
+
+## Security Architecture
+
+### Row Level Security (RLS) Policies
+
+```sql
+-- Players can only see players in their games
+CREATE POLICY "Players can view game participants" ON players
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM players p2 
+      WHERE p2.game_id = players.game_id 
+      AND p2.public_profile_id IN (
+        SELECT pp.id FROM public_profiles pp
+        JOIN profiles pr ON pp.profile_id = pr.id
+        WHERE pr.user_id = auth.uid()
+      )
+    )
+  );
+
+-- Users can only update their own public profile
+CREATE POLICY "Users can update own profile" ON public_profiles
+  FOR UPDATE USING (
+    profile_id IN (
+      SELECT id FROM profiles WHERE user_id = auth.uid()
+    )
+  );
+
+-- Game data is visible to participants only
+CREATE POLICY "Game visibility" ON games
+  FOR SELECT USING (
+    id IN (
+      SELECT game_id FROM players 
+      WHERE public_profile_id IN (
+        SELECT pp.id FROM public_profiles pp
+        JOIN profiles pr ON pp.profile_id = pr.id
+        WHERE pr.user_id = auth.uid()
+      )
+    )
+  );
+```
+
+### Security Benefits
+
+1. **Secure Indirection**: `game_player_id` prevents auth.users.id exposure
+2. **Domain Separation**: Public vs private data clearly separated  
+3. **Audit Trail**: All actions logged in game_actions table
+4. **Scalability**: UUID-based keys support massive scale
+5. **Privacy**: Users control what profile data is public
+
+## Realtime Subscriptions
+
+### Game State Updates
+```typescript
+// Subscribe to game changes
+supabase
+  .channel(`game-${gameId}`)
+  .on('postgres_changes', 
+    { event: '*', schema: 'public', table: 'games', filter: `id=eq.${gameId}` },
+    (payload) => handleGameStateChange(payload)
+  )
+  .subscribe();
+
+// Subscribe to game actions (event sourcing)
+supabase
+  .channel(`actions-${gameId}`)
+  .on('postgres_changes',
+    { event: 'INSERT', schema: 'public', table: 'game_actions', filter: `game_id=eq.${gameId}` },
+    (payload) => handleGameAction(payload)
+  )
+  .subscribe();
+
+// Subscribe to player presence
+supabase
+  .channel(`players-${gameId}`)
+  .on('postgres_changes',
+    { event: 'UPDATE', schema: 'public', table: 'players', filter: `game_id=eq.${gameId}` },
+    (payload) => handlePlayerUpdate(payload)
+  )
+  .subscribe();
+```
+
+## Data Flow Patterns
+
+### 1. User Registration & Profile Creation
+```
+1. User signs up → auth.users entry created
+2. Trigger creates profiles entry linked to auth.users.id
+3. User completes profile → public_profiles entry created
+4. User can now join games using secure public_profile_id
+```
+
+### 2. Game Joining Flow
+```
+1. Client calls: get_or_create_player_for_game(device_id, display_name, game_id)
+2. Function resolves user → profile → public_profile → creates players entry
+3. Returns secure game_player_id for all subsequent game operations
+4. Realtime notifies other players of new participant
+```
+
+### 3. Game Action Flow
+```
+1. Player performs action (play card, respond to round)
+2. Insert into game_actions table (event sourcing)
+3. Database triggers update game state tables
+4. Realtime pushes updates to all game participants
+5. Clients update UI optimistically, then sync with server state
+```
+
+### 4. Secure Data Access
+```
+Client Query: "Get my game data"
+→ RLS ensures user can only see own games
+→ Uses game_player_id for all game operations  
+→ Never exposes auth.users.id or profiles.id
+→ Public data comes via public_players view
+```
+
+## Performance Considerations
+
+### Database Indexes
+```sql
+-- Critical performance indexes
+CREATE INDEX idx_players_game_id ON players(game_id);
+CREATE INDEX idx_players_public_profile_id ON players(public_profile_id);  
+CREATE INDEX idx_cards_game_id_location ON cards(game_id, location);
+CREATE INDEX idx_cards_owner_id ON cards(owner_id);
+CREATE INDEX idx_game_actions_game_id_created ON game_actions(game_id, created_at);
+CREATE INDEX idx_rounds_game_id ON rounds(game_id);
+```
+
+### Caching Strategy
+- **Game State**: Cache current game via players.game_id
+- **Player Profiles**: Cache public_profiles data per game session
+- **Card Positions**: Cache hand/penalty pile states
+- **Statistics**: Cache computed statistics with periodic updates
+
+## Migration from Legacy Architecture
+
+### Deprecated Patterns (Legacy Compatibility)
+- ❌ `device_id` based authentication
+- ❌ Direct `auth.users.id` references  
+- ❌ `display_name` in players table
+- ❌ `is_connected` field naming
+
+### Modern Patterns (Current)
+- ✅ Enterprise authentication flow
+- ✅ Secure indirection with UUIDs
+- ✅ Domain separation (public vs private data)
+- ✅ Event sourcing with game_actions
+- ✅ Row Level Security throughout
+
+This enterprise architecture provides Discord/Steam-level security and scalability while maintaining backwards compatibility during the transition period.

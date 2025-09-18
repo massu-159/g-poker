@@ -85,29 +85,29 @@ Two players want to enjoy the popular German bluffing card game "ごきぶりポ
 *GATE: Automated checks run during main() execution*
 
 ### Content Quality
-- [x] No implementation details (languages, frameworks, APIs)
-- [x] Focused on user value and business needs
-- [x] Written for non-technical stakeholders
-- [x] All mandatory sections completed
+- [ ] No implementation details (languages, frameworks, APIs)
+- [ ] Focused on user value and business needs
+- [ ] Written for non-technical stakeholders
+- [ ] All mandatory sections completed
 
 ### Requirement Completeness
-- [x] No [NEEDS CLARIFICATION] markers remain
-- [x] Requirements are testable and unambiguous  
-- [x] Success criteria are measurable
-- [x] Scope is clearly bounded
-- [x] Dependencies and assumptions identified
+- [ ] No [NEEDS CLARIFICATION] markers remain
+- [ ] Requirements are testable and unambiguous  
+- [ ] Success criteria are measurable
+- [ ] Scope is clearly bounded
+- [ ] Dependencies and assumptions identified
 
 ---
 
 ## Execution Status
 *Updated by main() during processing*
 
-- [x] User description parsed
-- [x] Key concepts extracted
-- [x] Ambiguities marked
-- [x] User scenarios defined
-- [x] Requirements generated
-- [x] Entities identified
-- [x] Review checklist passed
+- [ ] User description parsed
+- [ ] Key concepts extracted
+- [ ] Ambiguities marked
+- [ ] User scenarios defined
+- [ ] Requirements generated
+- [ ] Entities identified
+- [ ] Review checklist passed
 
 ---
