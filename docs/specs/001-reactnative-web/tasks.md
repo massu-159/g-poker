@@ -220,32 +220,38 @@
 
 **Task 5.1.1: Penalty Pile Logic System**
 - **Priority**: Critical
-- **Estimate**: 12 hours
-- **Description**: Implement penalty pile management and win/loss detection
+- **Estimate**: 8 hours (reduced due to DB functions completed)
+- **Description**: Frontend integration for penalty pile management and win/loss detection
 - **Acceptance Criteria**:
-  - [ ] Track penalty cards per player by creature type
-  - [ ] Detect win/loss condition (3 of same creature type)
-  - [ ] Calculate game statistics and scoring
+  - [x] Track penalty cards per player by creature type (DB functions completed)
+  - [x] Detect win/loss condition (3 of same creature type) (DB functions completed)
+  - [ ] Frontend integration with check_player_loss() function
+  - [ ] Frontend integration with add_penalty_card() function
+  - [ ] UI updates for penalty pile visualization
+  - [ ] Game end flow and statistics calculation
 
 **Task 5.1.2: Card Passing and Claim Logic**
 - **Priority**: Critical
-- **Estimate**: 15 hours
-- **Description**: Core card passing, claim, and guess mechanics
+- **Estimate**: 12 hours (reduced due to DB schema completed)
+- **Description**: Core card passing, claim, and guess mechanics with new database schema
 - **Acceptance Criteria**:
-  - [ ] Card selection and passing between players
-  - [ ] Creature type claiming system
-  - [ ] Truth/lie evaluation logic
-  - [ ] Penalty assignment based on correct/incorrect guesses
+  - [ ] Card selection and passing between players using game_participants references
+  - [ ] Creature type claiming system with ENUM validation
+  - [ ] Truth/lie evaluation logic using game_rounds table
+  - [ ] Penalty assignment using add_penalty_card() database function
+  - [ ] Integration with new security architecture (game-scoped IDs)
 
 **Task 5.1.3: Cockroach Poker Round Management**
 - **Priority**: Critical
-- **Estimate**: 18 hours
-- **Description**: Complete round flow from card selection to penalty assignment
+- **Estimate**: 15 hours (reduced due to DB schema completed)
+- **Description**: Complete round flow with enhanced database structure
 - **Acceptance Criteria**:
-  - [ ] Turn-based round management
-  - [ ] Card claim and response handling
-  - [ ] Pass back chain logic
-  - [ ] Round completion and state updates
+  - [ ] Turn-based round management using game_rounds table
+  - [ ] Card claim and response handling with secure references
+  - [ ] Pass back chain logic with pass_count tracking
+  - [ ] Round completion using is_completed flag
+  - [ ] Real-time state updates via Supabase subscriptions
+  - [ ] Integration with check_player_loss() for game end detection
 
 ### Phase 6: Real-time Features 📅 BACKLOG
 
@@ -280,10 +286,13 @@
 
 ## Task Management Guidelines
 
+### 🎯 Development Philosophy
+**実装ロジック優先方針**: 動作する機能の実装を最優先とし、型安全性やコード品質の完璧さは二次的に扱う。まずは動くものを作り、後から改善する。
+
 ### Priority Levels
 - **Critical**: Blocks other work, must be completed immediately
-- **High**: Important for current phase completion
-- **Medium**: Nice to have, can be delayed if needed
+- **High**: Important for current phase completion (ロジック実装を優先)
+- **Medium**: Nice to have, can be delayed if needed (型厳密性、コード品質改善等)
 - **Low**: Future improvement, non-blocking
 
 ### Status Indicators
@@ -317,10 +326,13 @@
 3. **Start Task 4.2.1**: Game Creation Interface
 
 ### Success Metrics
-- **Code Quality**: All tasks pass code review
-- **Testing**: Unit tests for each completed component
-- **Documentation**: Update docs for any API changes
-- **Performance**: Page load times under 2 seconds
+🎯 **実装ロジック優先方針に基づく成功指標**:
+- **動作確認**: 機能が期待通りに動作する（最優先）
+- **基本品質**: 明らかなバグがない
+- **Documentation**: 重要なAPI変更のみ記録
+- **Performance**: 基本的な応答性確保
+- **Code Quality**: 実装完了後の改善項目として扱う
+- **Testing**: フル機能実装後の強化項目として扱う
 
 ## Notes
 
@@ -346,50 +358,56 @@
 ### Retrofit Tasks for Cockroach Poker (ごきぶりポーカー)
 
 **Task R.1: Database Schema Migration**
-- **Status**: ❌ Required
+- **Status**: ✅ Completed (2025-09-20)
 - **Priority**: Critical
 - **Estimate**: 6 hours
 - **Description**: Migrate from Texas Hold'em poker to Cockroach Poker schema
 - **Acceptance Criteria**:
-  - [ ] Update database tables for 2-player Cockroach Poker
-  - [ ] Change card system from 52-card deck to 24 creature cards (4 types × 6 cards)
-  - [ ] Add penalty pile tracking per player per creature type
-  - [ ] Remove poker-specific fields (blinds, buy-in, chip stacks)
-  - [ ] Add game-specific fields (creature claims, penalty counts)
+  - [x] Update database tables for 2-player Cockroach Poker
+  - [x] Change card system from 52-card deck to 24 creature cards (4 types × 6 cards)
+  - [x] Add penalty pile tracking per player per creature type
+  - [x] Remove poker-specific fields (blinds, buy-in, chip stacks)
+  - [x] Add game-specific fields (creature claims, penalty counts)
+  - [x] **BONUS**: Enhanced security with game-scoped references
+  - [x] **BONUS**: Added ENUM types for type safety
+  - [x] **BONUS**: Added performance indexes
 
 **Task R.2: Card Type Definition Update**
-- **Status**: ❌ Required
+- **Status**: ✅ Completed (2025-09-20)
 - **Priority**: Critical
 - **Estimate**: 4 hours
 - **Description**: Replace standard playing cards with creature cards
 - **Acceptance Criteria**:
-  - [ ] Define 4 creature types: ゴキブリ(Cockroach), ネズミ(Mouse), コウモリ(Bat), カエル(Frog)
-  - [ ] Remove suit/rank system, replace with creature type system
-  - [ ] Update card interfaces and enums
-  - [ ] Create creature card utilities and helpers
+  - [x] Define 4 creature types: ゴキブリ(Cockroach), ネズミ(Mouse), コウモリ(Bat), カエル(Frog)
+  - [x] Remove suit/rank system, replace with creature type system
+  - [x] Update card interfaces and enums
+  - [x] Create creature card utilities and helpers
+  - [x] **BONUS**: Database ENUM types implemented for type safety
 
 **Task R.3: Game Service Logic Update**
-- **Status**: ❌ Required
+- **Status**: 🔄 Partially Completed
 - **Priority**: Critical
-- **Estimate**: 8 hours
+- **Estimate**: 8 hours (4 hours remaining)
 - **Description**: Replace poker game logic with Cockroach Poker logic
 - **Acceptance Criteria**:
-  - [ ] Remove poker-specific operations (betting, hand evaluation)
-  - [ ] Add creature card passing and claiming logic
-  - [ ] Implement truth/lie guessing mechanics
-  - [ ] Add penalty pile management
-  - [ ] Update win condition (3 of same creature type = lose)
+  - [x] Remove poker-specific operations (betting, hand evaluation) - DB level
+  - [x] Add penalty pile management - Database functions implemented
+  - [x] Update win condition (3 of same creature type = lose) - Database function implemented
+  - [ ] Add creature card passing and claiming logic - Client side pending
+  - [ ] Implement truth/lie guessing mechanics - Client side pending
+  - [ ] Update gameService.ts for new database schema
 
 **Task R.4: Game Creation Interface Update**
-- **Status**: ❌ Required
+- **Status**: ✅ Completed (2025-09-20)
 - **Priority**: High
 - **Estimate**: 6 hours
 - **Description**: Update game creation for 2-player Cockroach Poker
 - **Acceptance Criteria**:
-  - [ ] Remove poker settings (blinds, buy-in, multiple players)
-  - [ ] Lock to exactly 2 players
-  - [ ] Add Cockroach Poker specific settings
-  - [ ] Update validation for 2-player requirements
+  - [x] Remove poker settings (blinds, buy-in, multiple players)
+  - [x] Lock to exactly 2 players
+  - [x] Add Cockroach Poker specific settings
+  - [x] Update validation for 2-player requirements
+  - [x] **BONUS**: Added Japanese game name and user-friendly descriptions
 
 **Task R.5: Game Browser Update**
 - **Status**: ❌ Required
@@ -425,18 +443,62 @@
   - [ ] Remove poker-specific ready states
 
 **Task R.8: Card Component Update**
-- **Status**: ❌ Required (In Progress)
+- **Status**: ✅ Completed (2025-09-20)
 - **Priority**: Critical
 - **Estimate**: 6 hours
 - **Description**: Update card display for creature cards
 - **Acceptance Criteria**:
-  - [ ] Replace suit/rank display with creature type
-  - [ ] Add creature artwork or symbols
-  - [ ] Update card back design
-  - [ ] Add face-down/face-up states for claims
+  - [x] Replace suit/rank display with creature type
+  - [x] Add creature artwork or symbols
+  - [x] Update card back design
+  - [x] Add face-down/face-up states for claims
+  - [x] **BONUS**: Japanese creature names and responsive animations
+
+### New Tasks Required by Database Migration
+
+**Task R.9: TypeScript Database Types Update**
+- **Status**: ❌ Required
+- **Priority**: Medium (降格: ロジック実装を優先)
+- **Estimate**: 4 hours
+- **Description**: Update TypeScript types to match new database schema
+- **Note**: 🎯 **型厳密性 < ロジック実装優先** - まずは動作する実装を優先し、型の完全性は後回し
+- **Acceptance Criteria**:
+  - [ ] Update database.ts types for new ENUM types
+  - [ ] Update interface references to match security architecture
+  - [ ] Add types for penalty pile structures
+  - [ ] Update service layer type definitions
+  - [ ] Fix type compilation errors
+
+**Task R.10: Service Layer Security Update**
+- **Status**: ❌ Required
+- **Priority**: High
+- **Estimate**: 6 hours
+- **Description**: Update services to use new security architecture
+- **Acceptance Criteria**:
+  - [ ] Update gameService to use public_profiles references
+  - [ ] Implement game-scoped ID handling in services
+  - [ ] Update authentication service for new profile structure
+  - [ ] Add ENUM type validation in service calls
+
+**Task R.11: Supabase Client Configuration Update**
+- **Status**: ❌ Required
+- **Priority**: Medium
+- **Estimate**: 2 hours
+- **Description**: Update Supabase client for new database functions
+- **Acceptance Criteria**:
+  - [ ] Add support for check_player_loss() function calls
+  - [ ] Add support for add_penalty_card() function calls
+  - [ ] Update RLS policy handling
+  - [ ] Test database function integration
 
 ---
 
-**Last Updated**: 2025-09-20 (Updated for Cockroach Poker specification)
+**Last Updated**: 2025-09-20 (Database migration completed, tasks updated)
 **Next Review**: Weekly sprint planning
-**Current Phase**: 4.1 - Authentication UI Implementation + Urgent Retrofitting
+**Current Phase**: 4.1 - Authentication UI Implementation + Post-Migration Updates
+
+### Migration Progress Summary
+✅ **Completed**: R.1, R.2, R.4, R.8 (Database + Core Components)
+🔄 **In Progress**: R.3 (Game Service - 50% complete)
+❌ **High Priority**: R.5, R.6, R.7, R.10, R.11 (UI Components + Service Updates)
+❌ **Medium Priority**: R.9 (Type Updates - 実装ロジック完了後に対応)
