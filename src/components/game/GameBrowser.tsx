@@ -149,18 +149,18 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
     }
   };
 
-  const formatGameSettings = (settings: GameSettings) => {
-    return `${settings.smallBlind}/${settings.bigBlind} - Buy-in: ${settings.buyIn}`;
+  const getGameTypeDisplay = (game: Game) => {
+    // For Cockroach Poker games, display game type and player count
+    return `Cockroach Poker (2 Players)`;
   };
 
   const filteredGames = games.filter(game => {
     if (searchText) {
       const searchLower = searchText.toLowerCase();
-      const settings = game.game_settings as GameSettings;
-      const settingsText = formatGameSettings(settings).toLowerCase();
+      const gameTypeText = getGameTypeDisplay(game).toLowerCase();
       const statusText = getStatusText(game.status as GameStatus).toLowerCase();
 
-      return settingsText.includes(searchLower) || statusText.includes(searchLower);
+      return gameTypeText.includes(searchLower) || statusText.includes(searchLower);
     }
     return true;
   });
@@ -194,7 +194,7 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
 
           <View style={styles.playersContainer}>
             <ThemedText style={styles.playersText}>
-              {item.current_players}/{item.max_players} players
+              {item.current_players}/2
             </ThemedText>
             {item.isFull && (
               <ThemedText style={[styles.fullText, { color: '#e74c3c' }]}>
@@ -205,33 +205,13 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
         </View>
 
         <View style={styles.gameDetails}>
-          <ThemedText style={styles.settingsText}>
-            {formatGameSettings(settings)}
+          <ThemedText style={styles.gameTypeText}>
+            {getGameTypeDisplay(item)}
           </ThemedText>
 
-          {settings.timeLimit && (
-            <ThemedText style={styles.timeLimitText}>
-              {settings.timeLimit}s per action
-            </ThemedText>
-          )}
-
-          <View style={styles.gameOptionsContainer}>
-            {settings.enableChat && (
-              <View style={[styles.optionTag, { backgroundColor: tintColor }]}>
-                <ThemedText style={styles.optionTagText}>Chat</ThemedText>
-              </View>
-            )}
-            {settings.isPrivate && (
-              <View style={[styles.optionTag, { backgroundColor: '#e74c3c' }]}>
-                <ThemedText style={styles.optionTagText}>Private</ThemedText>
-              </View>
-            )}
-            {settings.allowSpectators && (
-              <View style={[styles.optionTag, { backgroundColor: '#95a5a6' }]}>
-                <ThemedText style={styles.optionTagText}>Spectators</ThemedText>
-              </View>
-            )}
-          </View>
+          <ThemedText style={styles.gameDescriptionText}>
+            Bluff your way to victory in this card game of deception!
+          </ThemedText>
         </View>
 
         <View style={styles.gameActions}>
@@ -263,7 +243,7 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
     <View style={styles.emptyContainer}>
       <ThemedText style={styles.emptyTitle}>No Games Available</ThemedText>
       <ThemedText style={styles.emptySubtitle}>
-        Be the first to create a new poker game!
+        Be the first to create a new Cockroach Poker game!
       </ThemedText>
       {onCreateGame && (
         <TouchableOpacity
@@ -460,15 +440,17 @@ const styles = StyleSheet.create({
   gameDetails: {
     marginBottom: 12,
   },
-  settingsText: {
+  gameTypeText: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
+    color: '#27ae60',
   },
-  timeLimitText: {
+  gameDescriptionText: {
     fontSize: 14,
     opacity: 0.8,
     marginBottom: 8,
+    fontStyle: 'italic',
   },
   gameOptionsContainer: {
     flexDirection: 'row',

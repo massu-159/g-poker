@@ -156,26 +156,71 @@ export class AuthManager {
 
   private async ensureUserProfile(userId: string) {
     try {
+      // Check if user already has profiles (both authentication and public)
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', userId)
         .single();
 
+      const { data: existingPublicProfile } = await supabase
+        .from('public_profiles')
+        .select('id, profile_id')
+        .eq('profile_id', userId)
+        .single();
+
+      // Create authentication profile if missing
       if (!existingProfile) {
-        const { error } = await supabase
+        const { error: profileError } = await supabase
           .from('profiles')
           .insert({
             id: userId,
-            created_by: userId,
+            email: this.currentSession?.user?.email || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            last_seen_at: new Date().toISOString(),
+            is_active: true,
           });
 
-        if (error && error.code !== '23505') { // Ignore duplicate key errors
-          console.error('Failed to create user profile:', error);
+        if (profileError && profileError.code !== '23505') { // Ignore duplicate key errors
+          console.error('Failed to create authentication profile:', profileError);
+          throw profileError;
         }
+      }
+
+      // Create public profile if missing
+      if (!existingPublicProfile) {
+        // Extract display name from metadata or email
+        const displayName = this.currentSession?.user?.user_metadata?.displayName
+          || this.currentSession?.user?.email?.split('@')[0]
+          || 'Player';
+
+        const { error: publicProfileError } = await supabase
+          .from('public_profiles')
+          .insert({
+            profile_id: userId,
+            display_name: displayName,
+            avatar_url: null,
+            verification_status: 'unverified',
+            games_played: 0,
+            games_won: 0,
+            win_rate: 0.0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+
+        if (publicProfileError && publicProfileError.code !== '23505') { // Ignore duplicate key errors
+          console.error('Failed to create public profile:', publicProfileError);
+          throw publicProfileError;
+        }
+      }
+
+      if (environment.enableLogging) {
+        console.log('User profile ensured for:', userId);
       }
     } catch (error) {
       console.error('Failed to ensure user profile:', error);
+      throw error;
     }
   }
 
@@ -203,8 +248,37 @@ export class AuthManager {
     }
   }
 
+  // Auth state subscription for hooks
+  public subscribe(callback: (authState: AuthState) => void): () => void {
+    const listener = (event: AuthChangeEvent, session: Session | null) => {
+      const authState: AuthState = {
+        user: session?.user || null,
+        session,
+        isLoading: false,
+        isAuthenticated: session !== null,
+      };
+      callback(authState);
+    };
+
+    this.addAuthListener(listener);
+
+    // Return unsubscribe function
+    return () => {
+      this.removeAuthListener(listener);
+    };
+  }
+
+  public getAuthState(): AuthState {
+    return {
+      user: this.currentSession?.user || null,
+      session: this.currentSession,
+      isLoading: false,
+      isAuthenticated: this.currentSession !== null,
+    };
+  }
+
   // Authentication methods
-  public async signIn(email: string, password: string) {
+  public async signIn(email: string, password: string): Promise<{ success: boolean; error?: string }> {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -212,17 +286,20 @@ export class AuthManager {
       });
 
       if (error) {
-        throw error;
+        return { success: false, error: error.message };
       }
 
-      return data;
-    } catch (error) {
+      // Update last seen timestamp
+      await this.updateLastSeen();
+
+      return { success: true };
+    } catch (error: any) {
       console.error('Sign in failed:', error);
-      throw error;
+      return { success: false, error: error.message || 'Sign in failed' };
     }
   }
 
-  public async signUp(email: string, password: string, metadata?: Record<string, any>) {
+  public async signUp(email: string, password: string, metadata?: Record<string, any>): Promise<{ success: boolean; error?: string }> {
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -233,39 +310,106 @@ export class AuthManager {
       });
 
       if (error) {
-        throw error;
+        return { success: false, error: error.message };
       }
 
-      return data;
-    } catch (error) {
+      return { success: true };
+    } catch (error: any) {
       console.error('Sign up failed:', error);
-      throw error;
+      return { success: false, error: error.message || 'Sign up failed' };
     }
   }
 
-  public async signOut() {
+  public async signOut(): Promise<{ success: boolean; error?: string }> {
     try {
       const { error } = await supabase.auth.signOut();
 
       if (error) {
-        throw error;
+        return { success: false, error: error.message };
       }
-    } catch (error) {
+
+      return { success: true };
+    } catch (error: any) {
       console.error('Sign out failed:', error);
-      throw error;
+      return { success: false, error: error.message || 'Sign out failed' };
     }
   }
 
-  public async resetPassword(email: string) {
+  public async resetPassword(email: string): Promise<{ success: boolean; error?: string }> {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email);
 
       if (error) {
-        throw error;
+        return { success: false, error: error.message };
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Password reset failed:', error);
+      return { success: false, error: error.message || 'Password reset failed' };
+    }
+  }
+
+  // ENUM validation methods for data integrity
+  public validateCreatureType(value: string): value is CreatureType {
+    return ['cockroach', 'mouse', 'bat', 'frog'].includes(value);
+  }
+
+  public validateGameStatus(value: string): value is GameStatus {
+    return ['waiting', 'in_progress', 'completed', 'cancelled'].includes(value);
+  }
+
+  public validatePlayerStatus(value: string): value is PlayerStatus {
+    return ['joined', 'playing', 'disconnected', 'left'].includes(value);
+  }
+
+  public validateVerificationStatus(value: string): value is VerificationStatus {
+    return ['unverified', 'pending', 'verified', 'rejected', 'suspended'].includes(value);
+  }
+
+  // Helper method to get current user's public profile
+  public async getCurrentUserProfile(): Promise<PublicProfile | null> {
+    try {
+      const user = this.getCurrentUser();
+      if (!user) return null;
+
+      const { data: profile, error } = await supabase
+        .from('public_profiles')
+        .select('*')
+        .eq('profile_id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Failed to get user profile:', error);
+        return null;
+      }
+
+      return profile;
+    } catch (error) {
+      console.error('Failed to get current user profile:', error);
+      return null;
+    }
+  }
+
+  // Helper method to update user's last seen timestamp
+  public async updateLastSeen(): Promise<void> {
+    try {
+      const user = this.getCurrentUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          last_seen_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        console.error('Failed to update last seen:', error);
       }
     } catch (error) {
-      console.error('Password reset failed:', error);
-      throw error;
+      console.error('Failed to update last seen timestamp:', error);
     }
   }
 }
@@ -280,11 +424,23 @@ export type Enums<T extends keyof Database['public']['Enums']> = Database['publi
 // Export commonly used types
 export type Profile = Tables<'profiles'>;
 export type PublicProfile = Tables<'public_profiles'>;
-export type Player = Tables<'players'>;
 export type Game = Tables<'games'>;
-export type GamePlayer = Tables<'game_players'>;
-export type Card = Tables<'cards'>;
-export type Round = Tables<'rounds'>;
+export type GameParticipant = Tables<'game_participants'>;
+export type GameRound = Tables<'game_rounds'>;
 export type GameAction = Tables<'game_actions'>;
+
+// Export enum types for validation
+export type CreatureType = Enums<'creature_type'>;
+export type GameStatus = Enums<'game_status'>;
+export type PlayerStatus = Enums<'player_status'>;
+export type VerificationStatus = Enums<'verification_status'>;
+
+// Auth state interface
+export interface AuthState {
+  user: any | null;
+  session: Session | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+}
 
 export default supabase;

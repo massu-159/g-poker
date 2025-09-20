@@ -1,6 +1,6 @@
 /**
  * Game Lobby Screen Component
- * Main lobby interface where players wait before game starts
+ * Cockroach Poker lobby where 2 players wait before game starts
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -20,7 +20,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { useAuth } from '@/hooks/use-auth';
 import { gameService } from '@/services/gameService';
 import { PlayerList } from './PlayerList';
-import type { GameWithParticipants, LobbyPlayer, GameSettings } from '@/types/database';
+import type { GameWithParticipants, LobbyPlayer } from '@/types/database';
 
 interface GameLobbyScreenProps {
   gameId: string;
@@ -125,7 +125,7 @@ export function GameLobbyScreen({ gameId, onGameStarted, onGameLeft }: GameLobby
       if (result.success) {
         Alert.alert(
           'Game Started!',
-          'The poker game has begun. Good luck!',
+          'The Cockroach Poker game has begun. May the best bluffer win!',
           [
             {
               text: 'Continue',
@@ -133,7 +133,7 @@ export function GameLobbyScreen({ gameId, onGameStarted, onGameLeft }: GameLobby
                 if (onGameStarted) {
                   onGameStarted();
                 } else {
-                  router.push(`/game/table/${gameId}`);
+                  router.push(`/game/cockroach-poker/${gameId}`);
                 }
               },
             },
@@ -188,13 +188,13 @@ export function GameLobbyScreen({ gameId, onGameStarted, onGameLeft }: GameLobby
     }
   };
 
-  const formatGameSettings = (settings: GameSettings) => {
+  const getCockroachPokerInfo = () => {
     return [
-      `Blinds: ${settings.smallBlind}/${settings.bigBlind}`,
-      `Buy-in: ${settings.buyIn}`,
-      settings.timeLimit ? `Time limit: ${settings.timeLimit}s` : null,
-      settings.maxRounds ? `Max rounds: ${settings.maxRounds}` : null,
-    ].filter(Boolean);
+      'Players: 2',
+      'Cards: 24 creature cards (4 types × 6 cards)',
+      'Goal: Avoid getting 3 of the same creature type',
+      'Game Type: Bluffing and deduction',
+    ];
   };
 
   useEffect(() => {
@@ -229,9 +229,8 @@ export function GameLobbyScreen({ gameId, onGameStarted, onGameLeft }: GameLobby
     );
   }
 
-  const settings = game.game_settings as GameSettings;
-  const allPlayersReady = lobbyPlayers.length > 0 && lobbyPlayers.every(p => p.isReady);
-  const canStart = canStartGame && allPlayersReady && lobbyPlayers.length >= 2;
+  const allPlayersReady = lobbyPlayers.length === 2 && lobbyPlayers.every(p => p.isReady);
+  const canStart = canStartGame && allPlayersReady;
 
   return (
     <ThemedView style={styles.container}>
@@ -239,54 +238,45 @@ export function GameLobbyScreen({ gameId, onGameStarted, onGameLeft }: GameLobby
         {/* Header */}
         <View style={styles.header}>
           <ThemedText type="title" style={styles.title}>
-            Game Lobby
+            Cockroach Poker Lobby
           </ThemedText>
           <View style={styles.gameStatus}>
             <View style={[styles.statusIndicator, { backgroundColor: '#f39c12' }]} />
-            <ThemedText style={styles.statusText}>Waiting for Players</ThemedText>
+            <ThemedText style={styles.statusText}>Waiting for {2 - lobbyPlayers.length} more player{2 - lobbyPlayers.length !== 1 ? 's' : ''}</ThemedText>
           </View>
         </View>
 
-        {/* Game Settings */}
+        {/* Game Information */}
         <View style={styles.section}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>
-            Game Settings
+            Game Information
           </ThemedText>
           <View style={styles.settingsContainer}>
-            {formatGameSettings(settings).map((setting, index) => (
+            {getCockroachPokerInfo().map((info, index) => (
               <View key={index} style={styles.settingItem}>
-                <ThemedText style={styles.settingText}>{setting}</ThemedText>
+                <ThemedText style={styles.settingText}>{info}</ThemedText>
               </View>
             ))}
           </View>
 
-          {/* Game Options */}
-          <View style={styles.optionsContainer}>
-            {settings.enableChat && (
-              <View style={[styles.optionTag, { backgroundColor: tintColor }]}>
-                <ThemedText style={styles.optionTagText}>Chat Enabled</ThemedText>
-              </View>
-            )}
-            {settings.isPrivate && (
-              <View style={[styles.optionTag, { backgroundColor: '#e74c3c' }]}>
-                <ThemedText style={styles.optionTagText}>Private Game</ThemedText>
-              </View>
-            )}
-            {settings.allowSpectators && (
-              <View style={[styles.optionTag, { backgroundColor: '#95a5a6' }]}>
-                <ThemedText style={styles.optionTagText}>Spectators Allowed</ThemedText>
-              </View>
-            )}
+          {/* Creature Types Display */}
+          <View style={styles.creaturesContainer}>
+            <ThemedText style={styles.creaturesTitle}>Creature Types:</ThemedText>
+            <View style={styles.creaturesList}>
+              {['🪳 Cockroach', '🐭 Mouse', '🦇 Bat', '🐸 Frog'].map((creature, index) => (
+                <View key={index} style={[styles.creatureTag, { backgroundColor: tintColor }]}>
+                  <ThemedText style={styles.creatureTagText}>{creature}</ThemedText>
+                </View>
+              ))}
+            </View>
           </View>
         </View>
 
         {/* Player List */}
         <PlayerList
           players={lobbyPlayers}
-          maxPlayers={game.max_players}
           currentUserId={authState.user?.id}
           showReadyStatus={true}
-          showSeatNumbers={true}
         />
 
         {/* Ready Status Toggle */}
@@ -316,20 +306,23 @@ export function GameLobbyScreen({ gameId, onGameStarted, onGameLeft }: GameLobby
         {/* Game Rules */}
         <View style={styles.section}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>
-            Texas Hold'em Rules
+            Cockroach Poker Rules
           </ThemedText>
           <View style={styles.rulesContainer}>
             <ThemedText style={styles.ruleText}>
-              • Each player receives 2 hole cards
+              • Each player starts with 12 cards
             </ThemedText>
             <ThemedText style={styles.ruleText}>
-              • 5 community cards are dealt (flop, turn, river)
+              • Pass a card face-down and claim what it is
             </ThemedText>
             <ThemedText style={styles.ruleText}>
-              • Make the best 5-card hand possible
+              • Opponent can call 'truth', 'lie', or pass it back
             </ThemedText>
             <ThemedText style={styles.ruleText}>
-              • Four betting rounds: pre-flop, flop, turn, river
+              • Wrong guesses go to your penalty pile
+            </ThemedText>
+            <ThemedText style={styles.ruleText}>
+              • Lose if you get 3 of the same creature type!
             </ThemedText>
           </View>
         </View>
@@ -457,17 +450,25 @@ const styles = StyleSheet.create({
   settingText: {
     fontSize: 16,
   },
-  optionsContainer: {
+  creaturesContainer: {
+    marginTop: 12,
+  },
+  creaturesTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  creaturesList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  optionTag: {
+  creatureTag: {
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  optionTagText: {
+  creatureTagText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',

@@ -1,6 +1,6 @@
 /**
  * Player List Component
- * Displays current players in a game lobby with their status
+ * Displays exactly 2 players for Cockroach Poker games
  */
 
 import React from 'react';
@@ -17,31 +17,27 @@ import type { LobbyPlayer, VerificationStatus } from '@/types/database';
 
 interface PlayerListProps {
   players: LobbyPlayer[];
-  maxPlayers: number;
   currentUserId?: string;
   onPlayerPress?: (player: LobbyPlayer) => void;
   showReadyStatus?: boolean;
-  showSeatNumbers?: boolean;
 }
 
 interface PlayerItemProps {
   player?: LobbyPlayer;
-  seatNumber: number;
+  position: number;
   isEmpty: boolean;
   isCurrentUser: boolean;
   onPress?: () => void;
   showReadyStatus: boolean;
-  showSeatNumbers: boolean;
 }
 
 function PlayerItem({
   player,
-  seatNumber,
+  position,
   isEmpty,
   isCurrentUser,
   onPress,
   showReadyStatus,
-  showSeatNumbers,
 }: PlayerItemProps) {
   const textColor = useThemeColor({}, 'text');
   const tintColor = useThemeColor({}, 'tint');
@@ -90,17 +86,12 @@ function PlayerItem({
         onPress={onPress}
         disabled={!onPress}
       >
-        {showSeatNumbers && (
-          <View style={[styles.seatNumber, { backgroundColor: iconColor }]}>
-            <ThemedText style={styles.seatNumberText}>{seatNumber}</ThemedText>
-          </View>
-        )}
         <View style={styles.emptyPlayerContent}>
           <View style={[styles.emptyAvatar, { backgroundColor: iconColor }]}>
             <ThemedText style={styles.emptyAvatarText}>+</ThemedText>
           </View>
           <ThemedText style={[styles.emptyPlayerText, { color: iconColor }]}>
-            Empty Seat
+            Waiting for Player {position}
           </ThemedText>
         </View>
       </TouchableOpacity>
@@ -119,11 +110,6 @@ function PlayerItem({
       onPress={onPress}
       disabled={!onPress}
     >
-      {showSeatNumbers && (
-        <View style={[styles.seatNumber, { backgroundColor: tintColor }]}>
-          <ThemedText style={styles.seatNumberText}>{seatNumber}</ThemedText>
-        </View>
-      )}
 
       <View style={styles.playerContent}>
         {/* Avatar with connection status */}
@@ -171,14 +157,10 @@ function PlayerItem({
             </ThemedText>
           )}
 
-          {/* Player Stats */}
-          <View style={styles.playerStats}>
-            <ThemedText style={styles.statsText}>
-              {player.gamesPlayed} games
-            </ThemedText>
-            <ThemedText style={styles.statsSeparator}>•</ThemedText>
-            <ThemedText style={styles.statsText}>
-              {Math.round(player.winRate * 100)}% win rate
+          {/* Player Position */}
+          <View style={styles.playerPosition}>
+            <ThemedText style={styles.positionText}>
+              Player {position}
             </ThemedText>
           </View>
 
@@ -209,29 +191,27 @@ function PlayerItem({
 
 export function PlayerList({
   players,
-  maxPlayers,
   currentUserId,
   onPlayerPress,
   showReadyStatus = true,
-  showSeatNumbers = true,
 }: PlayerListProps) {
   const backgroundColor = useThemeColor({}, 'background');
 
-  // Create array of seats with players or empty slots
-  const seats = Array.from({ length: maxPlayers }, (_, index) => {
-    const seatNumber = index + 1;
-    const player = players.find(p => p.seatPosition === seatNumber);
+  // Create array of 2 player positions
+  const positions = Array.from({ length: 2 }, (_, index) => {
+    const position = index + 1;
+    const player = players.find(p => p.position === position);
     return {
-      seatNumber,
+      position,
       player,
       isEmpty: !player,
       isCurrentUser: player?.id === currentUserId,
     };
   });
 
-  const handlePlayerPress = (seat: typeof seats[0]) => {
-    if (seat.player && onPlayerPress) {
-      onPlayerPress(seat.player);
+  const handlePlayerPress = (position: typeof positions[0]) => {
+    if (position.player && onPlayerPress) {
+      onPlayerPress(position.player);
     }
   };
 
@@ -239,46 +219,41 @@ export function PlayerList({
     <ThemedView style={styles.container}>
       <View style={styles.header}>
         <ThemedText type="subtitle" style={styles.title}>
-          Players ({players.length}/{maxPlayers})
+          Cockroach Poker Players ({players.length}/2)
         </ThemedText>
 
         {showReadyStatus && (
           <View style={styles.readySummary}>
             <ThemedText style={styles.readySummaryText}>
-              {players.filter(p => p.isReady).length} ready
+              {players.filter(p => p.isReady).length}/2 ready
             </ThemedText>
           </View>
         )}
       </View>
 
       <View style={styles.playerGrid}>
-        {seats.map(seat => (
+        {positions.map(pos => (
           <PlayerItem
-            key={seat.seatNumber}
-            player={seat.player}
-            seatNumber={seat.seatNumber}
-            isEmpty={seat.isEmpty}
-            isCurrentUser={seat.isCurrentUser}
-            onPress={() => handlePlayerPress(seat)}
+            key={pos.position}
+            player={pos.player}
+            position={pos.position}
+            isEmpty={pos.isEmpty}
+            isCurrentUser={pos.isCurrentUser}
+            onPress={() => handlePlayerPress(pos)}
             showReadyStatus={showReadyStatus}
-            showSeatNumbers={showSeatNumbers}
           />
         ))}
       </View>
 
-      {/* Legend */}
+      {/* Status Legend */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={[styles.legendIndicator, { backgroundColor: '#27ae60' }]} />
-          <ThemedText style={styles.legendText}>Verified</ThemedText>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendIndicator, { backgroundColor: '#f39c12' }]} />
-          <ThemedText style={styles.legendText}>Pending</ThemedText>
+          <ThemedText style={styles.legendText}>Connected & Ready</ThemedText>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendIndicator, { backgroundColor: '#e74c3c' }]} />
-          <ThemedText style={styles.legendText}>Unverified</ThemedText>
+          <ThemedText style={styles.legendText}>Not Ready</ThemedText>
         </View>
       </View>
     </ThemedView>
@@ -312,7 +287,7 @@ const styles = StyleSheet.create({
   },
   playerGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 12,
   },
   playerItem: {
@@ -423,19 +398,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 4,
   },
-  playerStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  playerPosition: {
     marginBottom: 6,
   },
-  statsText: {
-    fontSize: 10,
+  positionText: {
+    fontSize: 12,
     opacity: 0.8,
-  },
-  statsSeparator: {
-    fontSize: 10,
-    opacity: 0.6,
-    marginHorizontal: 4,
+    textAlign: 'center',
+    fontWeight: '500',
   },
   readyStatusContainer: {
     flexDirection: 'row',

@@ -4,6 +4,7 @@
  */
 
 import { supabase } from './supabase';
+import { securityService, type SecurityValidationResult } from './securityService';
 import {
   createCockroachPokerDeck,
   shuffleDeck,
@@ -621,29 +622,49 @@ export class GameService {
     targetParticipantId: string
   ): Promise<GameOperationResult> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Security validation: Check game access
+      const accessResult = await securityService.validateGameAccess(gameId);
+      if (!accessResult.isValid) {
+        return { success: false, error: accessResult.error };
+      }
 
+      // Security validation: Check turn permission
+      const turnResult = await securityService.validateTurnPermission(gameId);
+      if (!turnResult.isValid) {
+        return { success: false, error: turnResult.error };
+      }
+
+      // Security validation: Validate ENUM types
+      const enumResult = securityService.validateEnums({ creatureType: claimedCreatureType });
+      if (!enumResult.isValid) {
+        return { success: false, error: enumResult.error };
+      }
+
+      // Security validation: Rate limiting
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         return { success: false, error: 'Authentication required' };
       }
 
-      // Get player's public profile
-      const { data: profile, error: profileError } = await supabase
-        .from('public_profiles')
-        .select('id')
-        .eq('profile_id', user.id)
-        .single();
-
-      if (profileError || !profile) {
-        return { success: false, error: 'Player profile not found' };
+      const rateLimitResult = securityService.checkRateLimit(user.id, 'make_claim', 5, 30000);
+      if (!rateLimitResult.isValid) {
+        return { success: false, error: rateLimitResult.error };
       }
 
-      // Get current player's participant record and hand
+      // Get current player's participant record (secure)
+      const participantResult = await securityService.getParticipantId(gameId);
+      if (!participantResult.isValid) {
+        return { success: false, error: participantResult.error };
+      }
+
+      const participantId = participantResult.data;
+
+      // Get participant details including hand
       const { data: participant, error: participantError } = await supabase
         .from('game_participants')
         .select('id, hand_cards')
+        .eq('id', participantId)
         .eq('game_id', gameId)
-        .eq('player_id', profile.id)
         .single();
 
       if (participantError || !participant) {
@@ -668,8 +689,7 @@ export class GameService {
           hand_cards: updatedHand,
           cards_remaining: updatedHand.length
         })
-        .eq('game_id', gameId)
-        .eq('player_id', profile.id);
+        .eq('id', participantId);
 
       if (updateHandError) {
         return { success: false, error: 'Failed to update hand' };
@@ -828,13 +848,46 @@ export class GameService {
           return { success: false, error: 'Failed to complete round' };
         }
 
-        // Add penalty card to the appropriate pile (penaltyReceiverId is participant.id)
-        await this.addPenaltyCardByParticipantId(gameId, penaltyReceiverId, currentCard);
+        // Add penalty card using database function
+        const penaltyResult = await this.addPenaltyCard(penaltyReceiverId, currentCard);
+        if (!penaltyResult.success) {
+          return { success: false, error: 'Failed to add penalty card' };
+        }
 
-        // Check if player has lost (penaltyReceiverId is participant.id)
-        const lossCheck = await this.checkForGameEndByParticipantId(gameId, penaltyReceiverId);
-        if (lossCheck.gameEnded) {
-          return { success: true, data: { gameEnded: true, winner: lossCheck.winnerId } };
+        // Check if player has lost using database function
+        const lossResult = await this.checkPlayerLoss(penaltyReceiverId);
+        if (!lossResult.success) {
+          return { success: false, error: 'Failed to check game end' };
+        }
+
+        if (lossResult.data?.hasLost) {
+          // Update participant as having lost
+          await supabase
+            .from('game_participants')
+            .update({
+              has_lost: true,
+              losing_creature_type: lossResult.data.losingCreature
+            })
+            .eq('id', penaltyReceiverId);
+
+          // Get winner (the other participant)
+          const { data: winner } = await supabase
+            .from('game_participants')
+            .select('player_id')
+            .eq('game_id', gameId)
+            .neq('id', penaltyReceiverId)
+            .single();
+
+          // Update game as completed
+          await supabase
+            .from('games')
+            .update({
+              status: 'completed',
+              current_turn_player_id: null
+            })
+            .eq('id', gameId);
+
+          return { success: true, data: { gameEnded: true, winner: winner?.player_id } };
         }
 
         // Get penalty receiver's player_id for game turn update
@@ -862,194 +915,170 @@ export class GameService {
     }
   }
 
+
   /**
-   * Add penalty card to player's penalty pile (using participant ID for security)
+   * Check if a player has lost using database function
    */
-  private async addPenaltyCardByParticipantId(gameId: string, participantId: string, card: Card): Promise<void> {
-    const { data: participant } = await supabase
-      .from('game_participants')
-      .select('penalty_cockroach, penalty_mouse, penalty_bat, penalty_frog')
-      .eq('id', participantId)
-      .eq('game_id', gameId)
-      .single();
+  async checkPlayerLoss(participantId: string): Promise<GameOperationResult<{ hasLost: boolean; losingCreature?: CreatureType }>> {
+    try {
+      const { data, error } = await supabase.rpc('check_player_loss', {
+        participant_id: participantId
+      });
 
-    if (!participant) return;
+      if (error) {
+        return { success: false, error: error.message };
+      }
 
-    const updateData: any = {};
-
-    switch (card.creatureType) {
-      case 'cockroach':
-        updateData.penalty_cockroach = [...(participant.penalty_cockroach as Card[]), card];
-        break;
-      case 'mouse':
-        updateData.penalty_mouse = [...(participant.penalty_mouse as Card[]), card];
-        break;
-      case 'bat':
-        updateData.penalty_bat = [...(participant.penalty_bat as Card[]), card];
-        break;
-      case 'frog':
-        updateData.penalty_frog = [...(participant.penalty_frog as Card[]), card];
-        break;
+      const result = data?.[0];
+      return {
+        success: true,
+        data: {
+          hasLost: result?.has_lost || false,
+          losingCreature: result?.losing_creature || undefined
+        }
+      };
+    } catch (error) {
+      console.error('Check player loss error:', error);
+      return { success: false, error: 'Failed to check player loss status' };
     }
-
-    await supabase
-      .from('game_participants')
-      .update(updateData)
-      .eq('id', participantId)
-      .eq('game_id', gameId);
   }
 
   /**
-   * Add penalty card to player's penalty pile (legacy method using player_id)
+   * Add penalty card to player's penalty pile using database function
    */
-  private async addPenaltyCard(gameId: string, playerId: string, card: Card): Promise<void> {
-    const { data: participant } = await supabase
-      .from('game_participants')
-      .select('penalty_cockroach, penalty_mouse, penalty_bat, penalty_frog')
-      .eq('game_id', gameId)
-      .eq('player_id', playerId)
-      .single();
+  async addPenaltyCard(participantId: string, card: Card): Promise<GameOperationResult> {
+    try {
+      const { error } = await supabase.rpc('add_penalty_card', {
+        participant_id: participantId,
+        card_data: card
+      });
 
-    if (!participant) return;
+      if (error) {
+        return { success: false, error: error.message };
+      }
 
-    const updateData: any = {};
-
-    switch (card.creatureType) {
-      case 'cockroach':
-        updateData.penalty_cockroach = [...(participant.penalty_cockroach as Card[]), card];
-        break;
-      case 'mouse':
-        updateData.penalty_mouse = [...(participant.penalty_mouse as Card[]), card];
-        break;
-      case 'bat':
-        updateData.penalty_bat = [...(participant.penalty_bat as Card[]), card];
-        break;
-      case 'frog':
-        updateData.penalty_frog = [...(participant.penalty_frog as Card[]), card];
-        break;
+      return { success: true };
+    } catch (error) {
+      console.error('Add penalty card error:', error);
+      return { success: false, error: 'Failed to add penalty card' };
     }
-
-    await supabase
-      .from('game_participants')
-      .update(updateData)
-      .eq('game_id', gameId)
-      .eq('player_id', playerId);
   }
 
   /**
-   * Check if game has ended (player has 3 of same creature type) using participant ID
+   * Process claim resolution with penalty assignment
    */
-  private async checkForGameEndByParticipantId(gameId: string, participantId: string): Promise<{ gameEnded: boolean; winnerId?: string }> {
-    const { data: participant } = await supabase
-      .from('game_participants')
-      .select('penalty_cockroach, penalty_mouse, penalty_bat, penalty_frog, player_id')
-      .eq('id', participantId)
-      .eq('game_id', gameId)
-      .single();
+  async processClaimResolution(
+    gameId: string,
+    roundId: string,
+    guesserParticipantId: string,
+    guessIsTruth: boolean
+  ): Promise<GameOperationResult<{ gameEnded: boolean; winnerId?: string }>> {
+    try {
+      // Get round details
+      const { data: round, error: roundError } = await supabase
+        .from('game_rounds')
+        .select('*')
+        .eq('id', roundId)
+        .single();
 
-    if (!participant) return { gameEnded: false };
+      if (roundError || !round) {
+        return { success: false, error: 'Round not found' };
+      }
 
-    const penaltyCounts = {
-      cockroach: (participant.penalty_cockroach as Card[]).length,
-      mouse: (participant.penalty_mouse as Card[]).length,
-      bat: (participant.penalty_bat as Card[]).length,
-      frog: (participant.penalty_frog as Card[]).length,
-    };
+      const currentCard = round.current_card as Card;
+      const actualIsTruth = currentCard.creatureType === round.claimed_creature_type;
+      const guessIsCorrect = guessIsTruth === actualIsTruth;
 
-    // Check if player has lost (3 of same type)
-    for (const [creatureType, count] of Object.entries(penaltyCounts)) {
-      if (count >= 3) {
-        // Player has lost - update game status
+      // Determine penalty receiver
+      const penaltyReceiverId = guessIsCorrect
+        ? round.claiming_player_id
+        : guesserParticipantId;
+
+      // Add penalty card using database function
+      const penaltyResult = await this.addPenaltyCard(penaltyReceiverId, currentCard);
+      if (!penaltyResult.success) {
+        return penaltyResult;
+      }
+
+      // Update round as completed
+      const { error: updateRoundError } = await supabase
+        .from('game_rounds')
+        .update({
+          is_completed: true,
+          final_guesser_id: guesserParticipantId,
+          guess_is_truth: guessIsTruth,
+          actual_is_truth: actualIsTruth,
+          penalty_receiver_id: penaltyReceiverId,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', roundId);
+
+      if (updateRoundError) {
+        return { success: false, error: 'Failed to update round' };
+      }
+
+      // Check if penalty receiver has lost
+      const lossResult = await this.checkPlayerLoss(penaltyReceiverId);
+      if (!lossResult.success) {
+        return lossResult;
+      }
+
+      if (lossResult.data?.hasLost) {
+        // Update participant as having lost
         await supabase
           .from('game_participants')
           .update({
             has_lost: true,
-            losing_creature_type: creatureType,
+            losing_creature_type: lossResult.data.losingCreature
           })
-          .eq('id', participantId)
-          .eq('game_id', gameId);
+          .eq('id', penaltyReceiverId);
 
-        // Get the other player as winner
-        const { data: allParticipants } = await supabase
+        // Get winner (the other participant)
+        const { data: winner } = await supabase
           .from('game_participants')
           .select('player_id')
           .eq('game_id', gameId)
-          .neq('player_id', participant.player_id);
+          .neq('id', penaltyReceiverId)
+          .single();
 
-        const winnerId = allParticipants?.[0]?.player_id;
-
-        // Update game status to completed
+        // Update game as completed
         await supabase
           .from('games')
           .update({
             status: 'completed',
-            current_turn_player_id: null,
+            current_turn_player_id: null
           })
           .eq('id', gameId);
 
-        return { gameEnded: true, winnerId };
+        return {
+          success: true,
+          data: { gameEnded: true, winnerId: winner?.player_id }
+        };
       }
+
+      // Game continues - set turn to penalty receiver for next round
+      const { data: nextPlayer } = await supabase
+        .from('game_participants')
+        .select('player_id')
+        .eq('id', penaltyReceiverId)
+        .single();
+
+      await supabase
+        .from('games')
+        .update({
+          current_turn_player_id: nextPlayer?.player_id
+        })
+        .eq('id', gameId);
+
+      return {
+        success: true,
+        data: { gameEnded: false }
+      };
+
+    } catch (error) {
+      console.error('Process claim resolution error:', error);
+      return { success: false, error: 'Failed to process claim resolution' };
     }
-
-    return { gameEnded: false };
-  }
-
-  /**
-   * Check if game has ended (player has 3 of same creature type) using player ID (legacy)
-   */
-  private async checkForGameEnd(gameId: string, playerId: string): Promise<{ gameEnded: boolean; winnerId?: string }> {
-    const { data: participant } = await supabase
-      .from('game_participants')
-      .select('penalty_cockroach, penalty_mouse, penalty_bat, penalty_frog, player_id')
-      .eq('game_id', gameId)
-      .eq('player_id', playerId)
-      .single();
-
-    if (!participant) return { gameEnded: false };
-
-    const penaltyCounts = {
-      cockroach: (participant.penalty_cockroach as Card[]).length,
-      mouse: (participant.penalty_mouse as Card[]).length,
-      bat: (participant.penalty_bat as Card[]).length,
-      frog: (participant.penalty_frog as Card[]).length,
-    };
-
-    // Check if player has lost (3 of same type)
-    for (const [creatureType, count] of Object.entries(penaltyCounts)) {
-      if (count >= 3) {
-        // Player has lost - update game status
-        await supabase
-          .from('game_participants')
-          .update({
-            has_lost: true,
-            losing_creature_type: creatureType,
-          })
-          .eq('game_id', gameId)
-          .eq('player_id', playerId);
-
-        // Get the other player as winner
-        const { data: allParticipants } = await supabase
-          .from('game_participants')
-          .select('player_id')
-          .eq('game_id', gameId)
-          .neq('player_id', playerId);
-
-        const winnerId = allParticipants?.[0]?.player_id;
-
-        // Update game status to completed
-        await supabase
-          .from('games')
-          .update({
-            status: 'completed',
-            current_turn_player_id: null,
-          })
-          .eq('id', gameId);
-
-        return { gameEnded: true, winnerId };
-      }
-    }
-
-    return { gameEnded: false };
   }
 }
 

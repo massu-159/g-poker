@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { authManager, AuthState } from '@/services/supabase';
+import { authManager, AuthState, type PublicProfile } from '@/services/supabase';
 
 interface AuthContextType {
   authState: AuthState;

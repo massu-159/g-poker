@@ -385,17 +385,19 @@
   - [x] **BONUS**: Database ENUM types implemented for type safety
 
 **Task R.3: Game Service Logic Update**
-- **Status**: 🔄 Partially Completed
+- **Status**: ✅ Completed (2025-09-20)
 - **Priority**: Critical
-- **Estimate**: 8 hours (4 hours remaining)
+- **Estimate**: 8 hours (COMPLETED)
 - **Description**: Replace poker game logic with Cockroach Poker logic
 - **Acceptance Criteria**:
   - [x] Remove poker-specific operations (betting, hand evaluation) - DB level
   - [x] Add penalty pile management - Database functions implemented
   - [x] Update win condition (3 of same creature type = lose) - Database function implemented
-  - [ ] Add creature card passing and claiming logic - Client side pending
-  - [ ] Implement truth/lie guessing mechanics - Client side pending
-  - [ ] Update gameService.ts for new database schema
+  - [x] Add creature card passing and claiming logic - Client side implemented
+  - [x] Implement truth/lie guessing mechanics - Frontend components implemented
+  - [x] Update gameService.ts for new database schema - Security architecture implemented
+  - [x] **BONUS**: Complete game state management with real-time updates
+  - [x] **BONUS**: Interactive UI components with game rules integration
 
 **Task R.4: Game Creation Interface Update**
 - **Status**: ✅ Completed (2025-09-20)
@@ -470,15 +472,18 @@
   - [ ] Fix type compilation errors
 
 **Task R.10: Service Layer Security Update**
-- **Status**: ❌ Required
+- **Status**: ✅ Completed (2025-09-20)
 - **Priority**: High
-- **Estimate**: 6 hours
+- **Estimate**: 6 hours (COMPLETED)
 - **Description**: Update services to use new security architecture
 - **Acceptance Criteria**:
-  - [ ] Update gameService to use public_profiles references
-  - [ ] Implement game-scoped ID handling in services
-  - [ ] Update authentication service for new profile structure
-  - [ ] Add ENUM type validation in service calls
+  - [x] Update gameService to use public_profiles references
+  - [x] Implement game-scoped ID handling in services
+  - [x] Update authentication service for new profile structure
+  - [x] Add ENUM type validation in service calls
+  - [x] **BONUS**: Created comprehensive SecurityService for access control
+  - [x] **BONUS**: Implemented rate limiting and turn validation
+  - [x] **BONUS**: Enhanced participant ID security with game-scoped access
 
 **Task R.11: Supabase Client Configuration Update**
 - **Status**: ❌ Required
@@ -498,7 +503,6 @@
 **Current Phase**: 4.1 - Authentication UI Implementation + Post-Migration Updates
 
 ### Migration Progress Summary
-✅ **Completed**: R.1, R.2, R.4, R.8 (Database + Core Components)
-🔄 **In Progress**: R.3 (Game Service - 50% complete)
-❌ **High Priority**: R.5, R.6, R.7, R.10, R.11 (UI Components + Service Updates)
+✅ **Completed**: R.1, R.2, R.3, R.4, R.8, R.10 (Database + Core Components + Game Logic + Security)
+❌ **High Priority**: R.5, R.6, R.7, R.11 (UI Components + Client Configuration)
 ❌ **Medium Priority**: R.9 (Type Updates - 実装ロジック完了後に対応)
