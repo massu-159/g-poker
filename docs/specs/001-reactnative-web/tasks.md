@@ -1,214 +1,442 @@
-# Tasks: ごきぶりポーカー React Native App - Enterprise Architecture
+# G-Poker Development Tasks
 
-**Input**: Design documents from `/specs/001-reactnative-web/`
-**Prerequisites**: plan.md (✅), research.md (✅), data-model.md (✅), contracts/ (enterprise patterns)
+## Current Phase: Phase 4 - Core UI Implementation
 
-## Execution Flow (Enterprise Architecture)
-```
-1. Load plan.md from feature directory
-   → ✅ Found: React Native + Expo, Supabase Cloud, Enterprise Security
-   → Extract: TypeScript, Supabase with RLS, Discord/Steam-style indirection
-2. Load enterprise design documents:
-   → ✅ data-model.md: Enterprise auth flow, secure indirection, event sourcing
-   → ✅ research.md: Supabase Cloud architecture, security decisions
-3. Generate tasks by enterprise category:
-   → Setup: Enterprise project structure, security config, audit logging
-   → Security: Authentication flow, RLS policies, secure indirection
-   → Tests: Security testing, contract validation, penetration testing
-   → Core: Enterprise models, services with audit trails, secure APIs
-   → Integration: Event sourcing, realtime with security, monitoring
-   → Polish: Security audit, performance under load, compliance
-```
+### Phase 4.1: Authentication UI 🔄 IN PROGRESS
 
-## Format: `[ID] [P?] Description`
-- **[P]**: Can run in parallel (different files, no dependencies)
-- Include exact file paths in descriptions
-- **[SECURITY]**: Critical security implementation
-- **[AUDIT]**: Requires audit trail implementation
+#### High Priority Tasks
 
-## Path Conventions
-- **Enterprise Mobile**: React Native app with Supabase Cloud enterprise security
-- Paths follow enterprise architecture patterns from data-model.md
+**Task 4.1.1: Login Screen Implementation**
+- **Status**: 🔄 Not Started
+- **Priority**: High
+- **Estimate**: 8 hours
+- **Dependencies**: None
+- **Acceptance Criteria**:
+  - [ ] Email/password input fields with validation
+  - [ ] Form submission with loading states
+  - [ ] Error handling and display
+  - [ ] Integration with Supabase Auth
+  - [ ] Rate limiting display (attempts remaining)
+  - [ ] Responsive design for mobile and web
 
-## Phase 3.1: Enterprise Setup & Security Foundation
-- [ ] T001 Create React Native enterprise project structure with security directories
-- [ ] T002 Initialize Supabase Cloud with enterprise authentication schema (auth.users → profiles → public_profiles)
-- [ ] T003 [P] [SECURITY] Configure enterprise security dependencies: Supabase Auth, RLS, UUID generation
-- [ ] T004 [P] Configure TypeScript strict mode with security linting (ESLint security plugin)
-- [ ] T005 [P] [SECURITY] Setup enterprise logging with correlation IDs and audit trails
-- [ ] T006 [P] [AUDIT] Configure structured logging pipeline for security events
+**Task 4.1.2: Registration Screen Implementation**
+- **Status**: 🔄 Not Started
+- **Priority**: High
+- **Estimate**: 10 hours
+- **Dependencies**: Task 4.1.1
+- **Acceptance Criteria**:
+  - [ ] Email, password, display name fields
+  - [ ] Password strength indicator
+  - [ ] Terms of service acceptance
+  - [ ] Email verification flow
+  - [ ] Success/error feedback
+  - [ ] Form validation with real-time feedback
 
-## Phase 3.2: Enterprise Database Schema with Security
-**CRITICAL: Enterprise security schema MUST exist before any tests or implementation**
-- [ ] T007 [P] [SECURITY] Create enterprise authentication tables (profiles, public_profiles) in Supabase
-- [ ] T008 [P] [SECURITY] Create secure indirection layer (players with game_player_id) in Supabase
-- [ ] T009 [P] Create games table with secure player references in Supabase
-- [ ] T010 [P] Create cards table with secure ownership tracking in Supabase
-- [ ] T011 [P] Create rounds table with secure player indirection in Supabase
-- [ ] T012 [P] [AUDIT] Create game_actions event sourcing table in Supabase
-- [ ] T013 [SECURITY] Configure comprehensive RLS policies for data isolation
-- [ ] T014 [SECURITY] Create secure database functions (get_or_create_player_for_game)
-- [ ] T015 [P] [SECURITY] Configure database indexes for performance and security queries
-- [ ] T016 [SECURITY] Setup database triggers for audit logging and data validation
+**Task 4.1.3: Profile Management Interface**
+- **Status**: 🔄 Not Started
+- **Priority**: Medium
+- **Estimate**: 12 hours
+- **Dependencies**: Tasks 4.1.1, 4.1.2
+- **Acceptance Criteria**:
+  - [ ] Display name editing
+  - [ ] Avatar upload functionality
+  - [ ] Verification status display
+  - [ ] Statistics overview (games played, win rate)
+  - [ ] Password change functionality
+  - [ ] Account deletion option
 
-## Phase 3.3: Enterprise Security Testing (TDD)
-**CRITICAL: Security tests MUST be written and MUST FAIL before ANY implementation**
-- [ ] T017 [P] [SECURITY] Contract test authentication flow in tests/contract/security/test_auth_flow.test.ts
-- [ ] T018 [P] [SECURITY] Contract test RLS policy enforcement in tests/contract/security/test_rls_policies.test.ts
-- [ ] T019 [P] [SECURITY] Contract test secure indirection in tests/contract/security/test_secure_indirection.test.ts
-- [ ] T020 [P] [SECURITY] Contract test data isolation between users in tests/contract/security/test_data_isolation.test.ts
-- [ ] T021 [P] [AUDIT] Contract test audit trail creation in tests/contract/audit/test_audit_trails.test.ts
-- [ ] T022 [P] Contract test Supabase connection security in tests/contract/supabase_api/test_secure_connection.test.ts
-- [ ] T023 [P] Contract test game operations with security in tests/contract/supabase_api/test_secure_game_operations.test.ts
-- [ ] T024 [P] Contract test player operations with RLS in tests/contract/supabase_api/test_secure_player_operations.test.ts
-- [ ] T025 [P] Contract test realtime subscriptions security in tests/contract/supabase_api/test_secure_realtime.test.ts
-- [ ] T026 [P] [AUDIT] Contract test event sourcing integrity in tests/contract/supabase_api/test_event_sourcing.test.ts
+**Task 4.1.4: Password Reset Flow**
+- **Status**: 🔄 Not Started
+- **Priority**: Medium
+- **Estimate**: 6 hours
+- **Dependencies**: Task 4.1.1
+- **Acceptance Criteria**:
+  - [ ] Forgot password screen
+  - [ ] Email input and validation
+  - [ ] Email sending confirmation
+  - [ ] Reset password screen (from email link)
+  - [ ] Success confirmation
 
-## Phase 3.4: Enterprise Integration Testing (TDD)
-**TDD RED PHASE VERIFIED**: All integration tests fail appropriately due to missing implementation ✅
-- [ ] T027 [P] [SECURITY] Integration test complete authentication flow in tests/integration/test_enterprise_auth_flow.test.ts
-- [ ] T028 [P] [SECURITY] Integration test secure player creation in tests/integration/test_secure_player_creation.test.ts
-- [ ] T029 [P] Integration test complete game flow with security in tests/integration/test_secure_game_flow.test.ts
-- [ ] T030 [P] [AUDIT] Integration test event sourcing and audit trails in tests/integration/test_audit_integration.test.ts
-- [ ] T031 [P] Integration test connection handling with security in tests/integration/test_secure_connection_handling.test.ts
-- [ ] T032 [P] Integration test state synchronization with RLS in tests/integration/test_secure_state_sync.test.ts
+#### Supporting Tasks
 
-## Phase 3.5: Enterprise Data Models (ONLY after security tests are failing)
-- [ ] T033 [P] [SECURITY] Enterprise authentication models in src/lib/entities/Auth.ts
-- [ ] T034 [P] [SECURITY] Secure Player model with indirection in src/lib/entities/Player.ts
-- [ ] T035 [P] Enterprise Game model with security metadata in src/lib/entities/Game.ts
-- [ ] T036 [P] Card model with secure ownership tracking in src/lib/entities/Card.ts
-- [ ] T037 [P] Round model with secure player references in src/lib/entities/Round.ts
-- [ ] T038 [P] [AUDIT] Event sourcing models for game actions in src/lib/entities/GameAction.ts
-- [ ] T039 [P] Enterprise game logic with security validation in src/lib/gameLogic/index.ts
-- [ ] T040 [P] [SECURITY] TypeScript interfaces for secure database operations in src/types/database.ts
+**Task 4.1.5: Authentication State Management**
+- **Status**: 🔄 Not Started
+- **Priority**: High
+- **Estimate**: 4 hours
+- **Acceptance Criteria**:
+  - [ ] React Context for auth state
+  - [ ] Automatic session refresh
+  - [ ] Logout functionality
+  - [ ] Protected route handling
 
-## Phase 3.6: Enterprise Supabase Services with Security
-- [ ] T041 [SECURITY] Supabase client with enterprise auth configuration in src/services/supabase.ts
-- [ ] T042 [SECURITY] Authentication service with secure session management in src/services/authService.ts
-- [ ] T043 Game service with security validation and audit logging in src/services/gameService.ts
-- [ ] T044 [SECURITY] Realtime service with authenticated subscriptions in src/services/realtimeService.ts
-- [ ] T045 [SECURITY] Matchmaking service with secure player handling in src/services/matchmakingService.ts
-- [ ] T046 [AUDIT] Storage service with audit trails in src/services/storageService.ts
+**Task 4.1.6: Form Validation System**
+- **Status**: 🔄 Not Started
+- **Priority**: Medium
+- **Estimate**: 6 hours
+- **Acceptance Criteria**:
+  - [ ] Reusable validation hooks
+  - [ ] Email format validation
+  - [ ] Password strength validation
+  - [ ] Display name validation (3-20 chars)
+  - [ ] Real-time validation feedback
 
-## Phase 3.7: Enterprise State Management with Security
-- [ ] T047 [P] [SECURITY] Zustand game store with security context in src/stores/gameStore.ts
-- [ ] T048 [P] [SECURITY] Zustand user store with secure profile management in src/stores/userStore.ts
-- [ ] T049 [P] TanStack Query with authentication interceptors in src/lib/queryClient.ts
-- [ ] T050 React hooks for secure game state management in src/hooks/useGameState.ts
-- [ ] T051 React hooks for authenticated realtime subscriptions in src/hooks/useRealtimeSubscription.ts
+### Phase 4.2: Game Lobby System 📋 PLANNED
 
-## Phase 3.8: Enterprise UI Components with Security Context
-- [ ] T052 [P] Card component with secure data handling in src/components/cards/Card.tsx
-- [ ] T053 [P] Hand component with user context validation in src/components/cards/Hand.tsx
-- [ ] T054 [P] Penalty pile component with secure display in src/components/game/PenaltyPile.tsx
-- [ ] T055 [P] Game board with authenticated player display in src/components/game/GameBoard.tsx
-- [ ] T056 [P] Player area with secure user identification in src/components/game/PlayerArea.tsx
-- [ ] T057 Game status with security indicators in src/components/game/GameStatus.tsx
+#### High Priority Tasks
 
-## Phase 3.9: Secure Screens with Authentication
-- [ ] T058 Login screen with enterprise authentication in src/components/auth/LoginScreen.tsx
-- [ ] T059 Lobby screen with authenticated matchmaking in src/screens/LobbyScreen.tsx
-- [ ] T060 Game screen with secure gameplay context in src/screens/GameScreen.tsx
-- [ ] T061 Results screen with secure winner verification in src/screens/ResultScreen.tsx
-- [ ] T062 Loading screen with security status indicators in src/screens/LoadingScreen.tsx
+**Task 4.2.1: Game Creation Interface**
+- **Status**: 📋 Planned
+- **Priority**: High
+- **Estimate**: 10 hours
+- **Dependencies**: Phase 4.1 completion
+- **Acceptance Criteria**:
+  - [ ] Game settings form (max players, blinds, buy-in)
+  - [ ] Advanced settings (time limits, options)
+  - [ ] Game creation API integration
+  - [ ] Loading states and error handling
+  - [ ] Settings validation
 
-## Phase 3.10: Enterprise Animations with Security
-- [ ] T063 [P] Card dealing animations with secure state in src/components/animations/CardDealing.tsx
-- [ ] T064 [P] Card movement animations with validation in src/components/animations/CardMovement.tsx
-- [ ] T065 [P] UI transitions with security context in src/components/animations/Transitions.tsx
+**Task 4.2.2: Game Browser/List**
+- **Status**: 📋 Planned
+- **Priority**: High
+- **Estimate**: 8 hours
+- **Dependencies**: Task 4.2.1
+- **Acceptance Criteria**:
+  - [ ] List of available games
+  - [ ] Game status indicators (waiting, in-progress)
+  - [ ] Player count display (current/max)
+  - [ ] Join game functionality
+  - [ ] Refresh and real-time updates
+  - [ ] Empty state handling
 
-## Phase 3.11: Enterprise App Architecture
-- [ ] T066 Navigation with authentication guards in src/navigation/AppNavigator.tsx
-- [ ] T067 App root with security providers and error boundaries in App.tsx
-- [ ] T068 Enterprise environment configuration in src/config/environment.ts
-- [ ] T069 [SECURITY] Mock providers for testing security scenarios in src/components/MockProviders.tsx
-- [ ] T070 Screen selector for enterprise testing in src/components/ScreenSelector.tsx
+**Task 4.2.3: Player List Component**
+- **Status**: 📋 Planned
+- **Priority**: Medium
+- **Estimate**: 6 hours
+- **Dependencies**: Task 4.2.2
+- **Acceptance Criteria**:
+  - [ ] Current players display
+  - [ ] Ready/not ready status
+  - [ ] Player avatars and names
+  - [ ] Verification status indicators
+  - [ ] Real-time updates
 
-## Phase 3.12: Enterprise Error Handling & Monitoring
-- [ ] T071 [P] Enterprise error boundary with security logging in src/components/ErrorBoundary.tsx
-- [ ] T072 [P] [AUDIT] Performance monitoring with security metrics in src/lib/performance.ts
-- [ ] T073 [P] Unit tests for enterprise game logic in tests/unit/gameLogic.test.ts
-- [ ] T074 [P] Unit tests for security utilities in tests/unit/utils.test.ts
-- [ ] T075 [P] Component tests with security context in tests/unit/components/
+**Task 4.2.4: Game Lobby Screen**
+- **Status**: 📋 Planned
+- **Priority**: High
+- **Estimate**: 12 hours
+- **Dependencies**: Tasks 4.2.1, 4.2.2, 4.2.3
+- **Acceptance Criteria**:
+  - [ ] Pre-game lobby interface
+  - [ ] Player list with ready states
+  - [ ] Game settings display
+  - [ ] Start game button (game creator)
+  - [ ] Leave game functionality
+  - [ ] Real-time player join/leave updates
 
-## Phase 3.13: Enterprise Polish & Compliance
-- [ ] T076 [SECURITY] Security audit and penetration testing validation
-- [ ] T077 [AUDIT] Compliance verification for audit trails and data retention
-- [ ] T078 Performance optimization under enterprise load testing
-- [ ] T079 [SECURITY] App build configuration with security hardening for iOS/Android
-- [ ] T080 Update CLAUDE.md with enterprise React Native security patterns
+#### Supporting Tasks
 
-## Dependencies
+**Task 4.2.5: Real-time Lobby Updates**
+- **Status**: 📋 Planned
+- **Priority**: High
+- **Estimate**: 8 hours
+- **Acceptance Criteria**:
+  - [ ] Supabase Realtime integration
+  - [ ] Player join/leave events
+  - [ ] Ready state synchronization
+  - [ ] Game state updates
+  - [ ] Connection status handling
 
-### Critical Enterprise Security Path
-- **Security Foundation** (T001-T006) → **Database Security** (T007-T016) → **Security Tests** (T017-T032) → **Secure Implementation** (T033-T080)
-- **Authentication Schema** (T007-T008) blocks all user-related operations
-- **RLS Policies** (T013) blocks all data access operations
-- **Security Tests** (T017-T026) must fail before secure models (T033-T040)
-- **Integration Tests** (T027-T032) must fail before secure services (T041-T046)
+### Phase 4.3: Cockroach Poker Game Interface 📋 PLANNED
 
-### Enterprise Implementation Dependencies
-- T041 (Supabase with auth) blocks T042-T046 (all secure services)
-- T033-T040 (enterprise models) required for T047-T048 (secure stores)
-- T047-T048 (secure stores) required for T050-T051 (authenticated hooks)
-- T052-T057 (secure components) required for T058-T062 (authenticated screens)
-- T041-T046 (secure services) + T047-T048 (secure stores) required for T058-T062 (screens)
+#### High Priority Tasks
 
-### Parallel Security Groups
-- **Authentication Setup**: T007-T008 (different auth tables)
-- **Security Tests**: T017-T026 (different security test files)
-- **Enterprise Models**: T033-T040 (different secure entity files)
-- **Secure Stores**: T047-T048 (independent secure state domains)
-- **UI Components**: T052-T057 (independent component files with security context)
-- **Security Animations**: T063-T065 (different animation systems with validation)
+**Task 4.3.1: 2-Player Game Layout**
+- **Status**: 📋 Planned
+- **Priority**: High
+- **Estimate**: 10 hours
+- **Dependencies**: Phase 4.2 completion + Retrofit tasks
+- **Acceptance Criteria**:
+  - [ ] Simple 2-player layout (Player 1 vs Player 2)
+  - [ ] Responsive design for different screen sizes
+  - [ ] Player hand areas (private cards)
+  - [ ] Center area for card claims
+  - [ ] Penalty pile display areas
+  - [ ] Action button area
 
-## Parallel Execution Examples
+**Task 4.3.2: Creature Card Display System**
+- **Status**: 📋 Planned
+- **Priority**: High
+- **Estimate**: 8 hours
+- **Dependencies**: Task 4.3.1, Task R.2
+- **Acceptance Criteria**:
+  - [ ] Creature card component with type display
+  - [ ] Hand card display (face down to opponent)
+  - [ ] Claimed card display in center
+  - [ ] Card passing animations
+  - [ ] Penalty pile card display
 
-### Phase 3.2: Enterprise Database Security Setup
-```bash
-Task: "Create enterprise authentication tables (profiles, public_profiles) in Supabase"
-Task: "Create secure indirection layer (players with game_player_id) in Supabase"
-Task: "Create games table with secure player references in Supabase"
-Task: "Create game_actions event sourcing table in Supabase"
-```
+**Task 4.3.3: 2-Player Position Components**
+- **Status**: 📋 Planned
+- **Priority**: Medium
+- **Estimate**: 6 hours
+- **Dependencies**: Task 4.3.1
+- **Acceptance Criteria**:
+  - [ ] Player avatar and name display
+  - [ ] Hand card count display
+  - [ ] Penalty pile visualization by creature type
+  - [ ] Turn indicator (current player)
+  - [ ] Connection status display
 
-### Phase 3.3: Security Testing Launch
-```bash
-Task: "Contract test authentication flow in tests/contract/security/test_auth_flow.test.ts"
-Task: "Contract test RLS policy enforcement in tests/contract/security/test_rls_policies.test.ts"
-Task: "Contract test secure indirection in tests/contract/security/test_secure_indirection.test.ts"
-Task: "Contract test audit trail creation in tests/contract/audit/test_audit_trails.test.ts"
-```
+**Task 4.3.4: Claim/Guess/Pass Action System**
+- **Status**: 📋 Planned
+- **Priority**: High
+- **Estimate**: 12 hours
+- **Dependencies**: Task 4.3.1
+- **Acceptance Criteria**:
+  - [ ] Card selection from hand
+  - [ ] Creature type claim buttons (4 types)
+  - [ ] Truth/Lie guess buttons
+  - [ ] Pass back button
+  - [ ] Action confirmation dialogs
+  - [ ] Timer display for actions
 
-### Phase 3.5: Enterprise Entity Models
-```bash
-Task: "Enterprise authentication models in src/lib/entities/Auth.ts"
-Task: "Secure Player model with indirection in src/lib/entities/Player.ts"
-Task: "Enterprise Game model with security metadata in src/lib/entities/Game.ts"
-Task: "Event sourcing models for game actions in src/lib/entities/GameAction.ts"
-```
+#### Supporting Tasks
 
-## Enterprise Validation Checklist
-*GATE: All items must be ✅ before implementation begins*
+**Task 4.3.5: Penalty Pile Visualization**
+- **Status**: 📋 Planned
+- **Priority**: Medium
+- **Estimate**: 6 hours
+- **Acceptance Criteria**:
+  - [ ] Penalty pile display per player
+  - [ ] Creature type counts (max 3 per type)
+  - [ ] Visual indicators for near-loss (2 of same type)
+  - [ ] Game status indicators
+  - [ ] Win/Loss condition display
 
-- [ ] All authentication flows have comprehensive security tests (T017-T021)
-- [ ] All database operations have RLS policy validation (T018, T023-T025)
-- [ ] All entities have secure indirection patterns (T034-T037 follow game_player_id pattern)
-- [ ] All tests validate security before implementation (Phase 3.3-3.4 before 3.5+)
-- [ ] Parallel tasks truly independent with no security context conflicts
-- [ ] Each task specifies exact file path with security implications noted
-- [ ] No task modifies same file as another [P] task
-- [ ] Event sourcing implemented for complete audit trail (T012, T026, T038, T046)
-- [ ] TDD enforced: failing security tests before secure implementation
-- [ ] Enterprise patterns: Discord/Steam-style secure indirection throughout
+## Backlog Tasks (Future Phases)
 
-## Enterprise Success Criteria
-- ✅ 80 tasks covering enterprise-grade React Native + Supabase multiplayer game
-- ✅ Security-first approach: 16 security/audit tests before any implementation
-- ✅ Enterprise patterns: Secure indirection, RLS policies, event sourcing, audit trails
-- ✅ Parallel execution: 35+ [P] tasks can run concurrently with security validation
-- ✅ Clear dependencies prevent security gaps and ensure proper enterprise order
-- ✅ Complete enterprise architecture: authentication → authorization → audit → implementation
-- ✅ Discord/Steam-level security with game_player_id indirection throughout
-- ✅ Full audit trail from user registration to game completion via event sourcing
+### Phase 5: Cockroach Poker Game Logic Implementation 📅 BACKLOG
+
+**Task 5.1.1: Penalty Pile Logic System**
+- **Priority**: Critical
+- **Estimate**: 12 hours
+- **Description**: Implement penalty pile management and win/loss detection
+- **Acceptance Criteria**:
+  - [ ] Track penalty cards per player by creature type
+  - [ ] Detect win/loss condition (3 of same creature type)
+  - [ ] Calculate game statistics and scoring
+
+**Task 5.1.2: Card Passing and Claim Logic**
+- **Priority**: Critical
+- **Estimate**: 15 hours
+- **Description**: Core card passing, claim, and guess mechanics
+- **Acceptance Criteria**:
+  - [ ] Card selection and passing between players
+  - [ ] Creature type claiming system
+  - [ ] Truth/lie evaluation logic
+  - [ ] Penalty assignment based on correct/incorrect guesses
+
+**Task 5.1.3: Cockroach Poker Round Management**
+- **Priority**: Critical
+- **Estimate**: 18 hours
+- **Description**: Complete round flow from card selection to penalty assignment
+- **Acceptance Criteria**:
+  - [ ] Turn-based round management
+  - [ ] Card claim and response handling
+  - [ ] Pass back chain logic
+  - [ ] Round completion and state updates
+
+### Phase 6: Real-time Features 📅 BACKLOG
+
+**Task 6.1.1: Real-time Game Synchronization**
+- **Priority**: High
+- **Estimate**: 15 hours
+- **Description**: Supabase Realtime integration for live gameplay
+
+**Task 6.1.2: Connection Handling**
+- **Priority**: High
+- **Estimate**: 12 hours
+- **Description**: Disconnection detection and recovery
+
+### Phase 7: Testing & QA 📅 BACKLOG
+
+**Task 7.1.1: Unit Test Implementation**
+- **Priority**: High
+- **Estimate**: 40 hours
+- **Description**: Comprehensive test suite for all components
+
+**Task 7.1.2: Integration Testing**
+- **Priority**: High
+- **Estimate**: 30 hours
+- **Description**: End-to-end testing scenarios
+
+### Phase 8: Deployment 📅 BACKLOG
+
+**Task 8.1.1: Production Environment Setup**
+- **Priority**: Medium
+- **Estimate**: 16 hours
+- **Description**: Production configuration and deployment
+
+## Task Management Guidelines
+
+### Priority Levels
+- **Critical**: Blocks other work, must be completed immediately
+- **High**: Important for current phase completion
+- **Medium**: Nice to have, can be delayed if needed
+- **Low**: Future improvement, non-blocking
+
+### Status Indicators
+- 🔄 **In Progress**: Currently being worked on
+- 📋 **Planned**: Defined and scheduled for current phase
+- 📅 **Backlog**: Future phases, not yet scheduled
+- ✅ **Completed**: Task finished and reviewed
+- ❌ **Blocked**: Cannot proceed due to dependencies
+- ⚠️ **At Risk**: May not complete on time
+
+### Time Estimates
+- Estimates include development, testing, and documentation
+- Add 25% buffer for unexpected complexity
+- Review estimates after each completed task
+
+### Dependencies
+- No task should start without dependencies completed
+- Cross-phase dependencies should be minimized
+- Document any external dependencies (APIs, third-party services)
+
+## Current Sprint Focus (Next 2 Weeks)
+
+### Week 1: Authentication Foundation
+1. **Complete Task 4.1.1**: Login Screen Implementation
+2. **Complete Task 4.1.2**: Registration Screen Implementation
+3. **Start Task 4.1.3**: Profile Management Interface
+
+### Week 2: Authentication Completion & Lobby Start
+1. **Complete Task 4.1.3**: Profile Management Interface
+2. **Complete Task 4.1.4**: Password Reset Flow
+3. **Start Task 4.2.1**: Game Creation Interface
+
+### Success Metrics
+- **Code Quality**: All tasks pass code review
+- **Testing**: Unit tests for each completed component
+- **Documentation**: Update docs for any API changes
+- **Performance**: Page load times under 2 seconds
+
+## Notes
+
+### Technical Debt
+- Monitor component reusability during UI development
+- Establish design system early in Phase 4
+- Consider internationalization requirements for future
+
+### Risk Mitigation
+- Regular testing on multiple device sizes
+- Early real-time testing with multiple clients
+- Security review after each auth-related task
+
+### Team Communication
+- Daily standup updates on task progress
+- Weekly sprint reviews and planning
+- Immediate escalation for any blocking issues
+
+---
+
+## 🔄 URGENT: Game Specification Change Tasks
+
+### Retrofit Tasks for Cockroach Poker (ごきぶりポーカー)
+
+**Task R.1: Database Schema Migration**
+- **Status**: ❌ Required
+- **Priority**: Critical
+- **Estimate**: 6 hours
+- **Description**: Migrate from Texas Hold'em poker to Cockroach Poker schema
+- **Acceptance Criteria**:
+  - [ ] Update database tables for 2-player Cockroach Poker
+  - [ ] Change card system from 52-card deck to 24 creature cards (4 types × 6 cards)
+  - [ ] Add penalty pile tracking per player per creature type
+  - [ ] Remove poker-specific fields (blinds, buy-in, chip stacks)
+  - [ ] Add game-specific fields (creature claims, penalty counts)
+
+**Task R.2: Card Type Definition Update**
+- **Status**: ❌ Required
+- **Priority**: Critical
+- **Estimate**: 4 hours
+- **Description**: Replace standard playing cards with creature cards
+- **Acceptance Criteria**:
+  - [ ] Define 4 creature types: ゴキブリ(Cockroach), ネズミ(Mouse), コウモリ(Bat), カエル(Frog)
+  - [ ] Remove suit/rank system, replace with creature type system
+  - [ ] Update card interfaces and enums
+  - [ ] Create creature card utilities and helpers
+
+**Task R.3: Game Service Logic Update**
+- **Status**: ❌ Required
+- **Priority**: Critical
+- **Estimate**: 8 hours
+- **Description**: Replace poker game logic with Cockroach Poker logic
+- **Acceptance Criteria**:
+  - [ ] Remove poker-specific operations (betting, hand evaluation)
+  - [ ] Add creature card passing and claiming logic
+  - [ ] Implement truth/lie guessing mechanics
+  - [ ] Add penalty pile management
+  - [ ] Update win condition (3 of same creature type = lose)
+
+**Task R.4: Game Creation Interface Update**
+- **Status**: ❌ Required
+- **Priority**: High
+- **Estimate**: 6 hours
+- **Description**: Update game creation for 2-player Cockroach Poker
+- **Acceptance Criteria**:
+  - [ ] Remove poker settings (blinds, buy-in, multiple players)
+  - [ ] Lock to exactly 2 players
+  - [ ] Add Cockroach Poker specific settings
+  - [ ] Update validation for 2-player requirements
+
+**Task R.5: Game Browser Update**
+- **Status**: ❌ Required
+- **Priority**: High
+- **Estimate**: 4 hours
+- **Description**: Update game browser for 2-player games
+- **Acceptance Criteria**:
+  - [ ] Show 2-player game status (0/2, 1/2, 2/2)
+  - [ ] Remove poker-specific display elements
+  - [ ] Update filtering for Cockroach Poker games
+  - [ ] Show Cockroach Poker game type
+
+**Task R.6: Player List Component Update**
+- **Status**: ❌ Required
+- **Priority**: Medium
+- **Estimate**: 4 hours
+- **Description**: Simplify for exactly 2 players
+- **Acceptance Criteria**:
+  - [ ] Fixed 2-player layout (Player 1 vs Player 2)
+  - [ ] Remove seat position management (not needed)
+  - [ ] Remove poker-specific status indicators
+  - [ ] Add Cockroach Poker specific status
+
+**Task R.7: Game Lobby Screen Update**
+- **Status**: ❌ Required
+- **Priority**: High
+- **Estimate**: 6 hours
+- **Description**: Update lobby for Cockroach Poker
+- **Acceptance Criteria**:
+  - [ ] Remove poker rules and settings display
+  - [ ] Add Cockroach Poker rules explanation
+  - [ ] Update game status for 2-player requirements
+  - [ ] Remove poker-specific ready states
+
+**Task R.8: Card Component Update**
+- **Status**: ❌ Required (In Progress)
+- **Priority**: Critical
+- **Estimate**: 6 hours
+- **Description**: Update card display for creature cards
+- **Acceptance Criteria**:
+  - [ ] Replace suit/rank display with creature type
+  - [ ] Add creature artwork or symbols
+  - [ ] Update card back design
+  - [ ] Add face-down/face-up states for claims
+
+---
+
+**Last Updated**: 2025-09-20 (Updated for Cockroach Poker specification)
+**Next Review**: Weekly sprint planning
+**Current Phase**: 4.1 - Authentication UI Implementation + Urgent Retrofitting

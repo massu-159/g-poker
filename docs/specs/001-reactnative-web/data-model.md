@@ -1,434 +1,425 @@
-# Data Model: ごきぶりポーカー React Native App - Enterprise Architecture
+# G-Poker Data Model
 
 ## Overview
 
-This document describes the enterprise-grade data architecture for the ごきぶりポーカー multiplayer game, following Discord/Steam/League of Legends style security patterns with secure indirection and proper domain separation.
+G-Poker uses a simplified, secure database architecture built on Supabase PostgreSQL with Row Level Security (RLS). The design prioritizes data integrity, security, and performance for real-time Cockroach Poker (ごきぶりポーカー) gameplay.
 
-**Authentication Flow**: `auth.users` → `profiles` → `public_profiles` → `players`
+## Database Schema
 
-## Core Database Tables
+### ENUM Types
 
-### 1. Authentication & User Management
+```sql
+-- Creature types for the 4 types of cards in Cockroach Poker
+CREATE TYPE creature_type AS ENUM ('cockroach', 'mouse', 'bat', 'frog');
 
-#### `auth.users` (Supabase Auth Table)
-- **Purpose**: Core authentication, managed by Supabase Auth
-- **Security**: Never directly referenced in application logic
-- **Contains**: email, encrypted password, metadata
+-- Game status for game lifecycle management
+CREATE TYPE game_status AS ENUM ('waiting', 'in_progress', 'completed', 'cancelled');
 
-#### `profiles` (Private User Data)
+-- Player status for participation tracking
+CREATE TYPE player_status AS ENUM ('joined', 'playing', 'disconnected', 'left');
+```
+
+### Core Tables
+
+#### 1. profiles (Authentication Core)
+Primary authentication table linked to Supabase auth.users.
+
 ```sql
 CREATE TABLE profiles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),    -- Secure surrogate key
-  user_id UUID UNIQUE REFERENCES auth.users(id),   -- Hidden auth reference
-  device_id TEXT,                                   -- Device identification
-  email TEXT,                                       -- User email
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  id UUID PRIMARY KEY REFERENCES auth.users(id),
+  email VARCHAR,                          -- User email
+  created_at TIMESTAMPTZ DEFAULT NOW(),   -- Account creation
+  updated_at TIMESTAMPTZ DEFAULT NOW(),   -- Last update
+  last_seen_at TIMESTAMPTZ DEFAULT NOW(), -- Last activity
+  is_active BOOLEAN DEFAULT TRUE          -- Account status
 );
 ```
-**RLS**: Strict - users can only access their own profile
-**Access Pattern**: Used internally for user account management
 
-#### `public_profiles` (Public Player Data)
+**Purpose**: Core authentication and account management
+**Security**: RLS enabled, users can only access their own profile
+
+#### 2. public_profiles (Player Information)
+Public player data and Cockroach Poker statistics.
+
 ```sql
 CREATE TABLE public_profiles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_id UUID UNIQUE REFERENCES profiles(id),
-  display_name VARCHAR(20) NOT NULL CHECK (
-    length(display_name) >= 1 AND 
-    length(display_name) <= 20 AND
-    display_name ~ '^[a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\s_-]+$'
-  ),
-  avatar TEXT,
-  bio TEXT CHECK (length(bio) <= 500),
-  game_preferences JSONB DEFAULT '{
-    "sound": true,
-    "animations": true, 
-    "auto_pass_back": false,
-    "show_statistics": true
-  }',
-  privacy_settings JSONB DEFAULT '{
-    "show_stats": true,
-    "show_online_status": true,
-    "allow_friend_requests": true
-  }',
-  statistics JSONB DEFAULT '{
-    "wins": 0,
-    "losses": 0,
-    "win_rate": 0,
-    "fastest_win": null,
-    "total_games": 0,
-    "longest_game": 0,
-    "favorite_creature": null,
-    "average_game_duration": 0
-  }',
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  profile_id UUID REFERENCES profiles(id),     -- Links to authentication
+  display_name VARCHAR,                         -- Player display name
+  avatar_url TEXT,                             -- Player avatar
+  verification_status VARCHAR DEFAULT 'unverified', -- Trust level
+  games_played INTEGER DEFAULT 0,              -- Cockroach Poker games played
+  games_won INTEGER DEFAULT 0,                 -- Games won
+  win_rate NUMERIC DEFAULT 0.0,               -- Win percentage
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
-**RLS**: Public read, owner write
-**Security**: No direct auth.users references
 
-### 2. Game Management
+**Purpose**: Public player information and game statistics
+**Verification Levels**: `unverified`, `pending`, `verified`, `rejected`, `suspended`
+**Security**: Accessible based on privacy settings and verification status
 
-#### `games` (Game Sessions)
+#### 3. games (Cockroach Poker Sessions)
+Manages Cockroach Poker game sessions and their lifecycle.
+
 ```sql
 CREATE TABLE games (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  status VARCHAR(50) DEFAULT 'waiting_for_players' CHECK (
-    status IN ('waiting_for_players', 'in_progress', 'ended', 'abandoned')
-  ),
-  current_turn UUID,                                -- References players.game_player_id
-  created_at TIMESTAMP DEFAULT now(),
-  started_at TIMESTAMP,
-  ended_at TIMESTAMP,
-  winner_id UUID,                                   -- References players.game_player_id
-  settings JSONB DEFAULT '{
-    "winCondition": 3,
-    "turnTimeLimit": 60,
-    "reconnectionGracePeriod": 30
-  }'
+  creator_id UUID REFERENCES public_profiles(id),  -- Game creator
+  status game_status DEFAULT 'waiting',            -- Game state (ENUM)
+  max_players INTEGER DEFAULT 2,                   -- Always 2 for Cockroach Poker
+  current_player_count INTEGER DEFAULT 0,          -- Current count
+  current_turn_player_id UUID REFERENCES public_profiles(id), -- Whose turn
+  round_number INTEGER DEFAULT 0,                  -- Current round
+  time_limit_seconds INTEGER DEFAULT 30,           -- Action time limit (seconds)
+  hidden_card_count INTEGER DEFAULT 6,             -- Cards not dealt (6 remain hidden)
+  game_deck JSONB,                                -- 24 creature cards storage
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
-**Security**: Uses game_player_id references (secure indirection)
 
-#### `players` (Game Participation)
+**Status Values**: `waiting`, `in_progress`, `completed`, `cancelled` (game_status ENUM)
+**Game Deck**: 24 creature cards (6 each of cockroach, mouse, bat, frog)
+**Card Distribution**: 9 cards per player, 6 remain hidden
+**Security**: References public_profiles for enhanced security isolation
+
+#### 4. game_participants (Player-Game Relationships)
+Tracks players in Cockroach Poker games with their cards and penalty status.
+
 ```sql
-CREATE TABLE players (
-  game_player_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),  -- Secure game identity
-  game_id UUID REFERENCES games(id),
-  public_profile_id UUID REFERENCES public_profiles(id),      -- Secure indirection
-  game_role TEXT CHECK (game_role IN ('host', 'player')),
-  is_online BOOLEAN DEFAULT true,
-  last_seen TIMESTAMP DEFAULT now(),
-  joined_at TIMESTAMP DEFAULT now()
-);
-```
-**Security**: 
-- `game_player_id` provides secure indirection from auth system
-- No direct user identification outside of public_profile_id
-- RLS ensures players only see data for their games
-
-#### `public_players` (Secure View)
-```sql
-CREATE VIEW public_players AS
-SELECT 
-  p.game_player_id,
-  p.game_id,
-  pp.display_name,
-  pp.avatar,
-  p.game_role,
-  p.is_online,
-  p.joined_at
-FROM players p
-JOIN public_profiles pp ON p.public_profile_id = pp.id;
-```
-**Usage**: Primary interface for client applications
-
-### 3. Game Content
-
-#### `cards` (Game Cards)
-```sql
-CREATE TABLE cards (
+CREATE TABLE game_participants (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  game_id UUID REFERENCES games(id),
-  creature_type VARCHAR(20) CHECK (
-    creature_type IN ('cockroach', 'mouse', 'bat', 'frog')
-  ),
-  location VARCHAR(20) DEFAULT 'deck' CHECK (
-    location IN ('deck', 'hand', 'penalty', 'in_play')
-  ),
-  owner_id UUID REFERENCES players(game_player_id)  -- Secure player reference
+  game_id UUID REFERENCES games(id) ON DELETE CASCADE,
+  player_id UUID REFERENCES public_profiles(id) ON DELETE CASCADE,
+  status player_status DEFAULT 'joined',       -- Player state (ENUM)
+  position INTEGER CHECK (position IN (1, 2)), -- Player 1 or Player 2
+
+  -- Player's hand (private cards)
+  hand_cards JSONB DEFAULT '[]',               -- Array of card objects
+
+  -- Penalty pile by creature type (Cockroach Poker core mechanic)
+  penalty_cockroach JSONB DEFAULT '[]',        -- Cockroach penalty cards
+  penalty_mouse JSONB DEFAULT '[]',            -- Mouse penalty cards
+  penalty_bat JSONB DEFAULT '[]',              -- Bat penalty cards
+  penalty_frog JSONB DEFAULT '[]',             -- Frog penalty cards
+
+  -- Game state tracking
+  cards_remaining INTEGER DEFAULT 9,           -- Cards left in hand
+  has_lost BOOLEAN DEFAULT FALSE,              -- Lost the game
+  losing_creature_type creature_type,          -- Which creature caused loss (ENUM)
+
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
-#### `rounds` (Game Rounds)
+**Status Values**: `joined`, `playing`, `disconnected`, `left` (player_status ENUM)
+**Penalty Piles**: Separate JSONB arrays for each creature type (lose when 3 of same type)
+**Position**: Exactly 2 players (position 1 and 2)
+**Security**: References public_profiles for secure player identification
+
+#### 5. game_rounds (Card Passing Rounds)
+Manages individual card passing rounds within Cockroach Poker games.
+
 ```sql
-CREATE TABLE rounds (
+CREATE TABLE game_rounds (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  game_id UUID REFERENCES games(id),
-  card_id UUID REFERENCES cards(id),
-  initiating_player_id UUID REFERENCES players(game_player_id),
-  target_player_id UUID REFERENCES players(game_player_id),
-  claim VARCHAR(20) CHECK (
-    claim IN ('cockroach', 'mouse', 'bat', 'frog')
-  ),
-  response JSONB,                    -- {type: 'believe'|'disbelieve'|'pass_back', timestamp: ISO}
-  outcome JSONB,                     -- {winner: UUID, loser: UUID, penalty_card: Card}
-  created_at TIMESTAMP DEFAULT now(),
-  completed_at TIMESTAMP
+  game_id UUID REFERENCES games(id) ON DELETE CASCADE,
+  round_number INTEGER NOT NULL,
+
+  -- Current card being passed
+  current_card JSONB NOT NULL,                -- Card object with creature type
+
+  -- Claim information (SECURE: references game_participants for game-scoped security)
+  claiming_player_id UUID REFERENCES game_participants(id) NOT NULL,
+  claimed_creature_type creature_type NOT NULL, -- What player claims it is (ENUM)
+  target_player_id UUID REFERENCES game_participants(id) NOT NULL,
+
+  -- Round state
+  pass_count INTEGER DEFAULT 0,               -- Times card passed back
+  is_completed BOOLEAN DEFAULT FALSE,
+
+  -- Final resolution (SECURE: references game_participants for game-scoped security)
+  final_guesser_id UUID REFERENCES game_participants(id), -- Who made final guess
+  guess_is_truth BOOLEAN,                     -- Guess: true or false
+  actual_is_truth BOOLEAN,                    -- Reality: was claim true
+  penalty_receiver_id UUID REFERENCES game_participants(id), -- Who got penalty
+
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
-#### `game_actions` (Event Sourcing)
+**Round Flow**: Card claim → guess/pass → penalty assignment
+**Claims**: Player claims card is a specific creature type (can be lie)
+**Security Enhancement**: All player references use game_participants(id) for game-scoped access control
+
+#### 6. game_actions (Player Actions)
+Records all player actions during Cockroach Poker gameplay.
+
 ```sql
 CREATE TABLE game_actions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  game_id UUID REFERENCES games(id),
-  player_id UUID REFERENCES players(game_player_id),
-  action_type VARCHAR(50) CHECK (
-    action_type IN ('join_game', 'play_card', 'respond_round', 'disconnect', 'reconnect')
-  ),
-  action_data JSONB DEFAULT '{}',
-  created_at TIMESTAMP DEFAULT now()
+  game_id UUID REFERENCES games(id) ON DELETE CASCADE,
+  round_id UUID REFERENCES game_rounds(id) ON DELETE SET NULL,
+  player_id UUID REFERENCES public_profiles(id) ON DELETE CASCADE,
+
+  action_type VARCHAR NOT NULL CHECK (action_type IN (
+    'join_game', 'leave_game', 'start_game',
+    'pass_card', 'make_claim', 'guess_truth', 'guess_lie', 'pass_back',
+    'receive_penalty', 'game_end'
+  )),
+
+  action_data JSONB DEFAULT '{}',              -- Action details
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
-**Purpose**: Immutable event log for game actions and audit trail
 
-## TypeScript Interfaces
+**Action Types**: Cockroach Poker specific actions
+- `join_game`: Player joins the game
+- `leave_game`: Player leaves the game
+- `start_game`: Game is started
+- `pass_card`: Player passes card with claim
+- `make_claim`: Player claims card is specific creature type
+- `guess_truth`: Player believes claim is true
+- `guess_lie`: Player believes claim is false
+- `pass_back`: Player passes card back instead of guessing
+- `receive_penalty`: Player receives penalty card
+- `game_end`: Game has ended
 
-### Core Game Entities
-
-```typescript
-interface Game {
-  id: string;
-  status: 'waiting_for_players' | 'in_progress' | 'ended' | 'abandoned';
-  currentTurn?: string;              // game_player_id
-  winnerId?: string;                 // game_player_id
-  settings: {
-    winCondition: number;            // Default: 3
-    turnTimeLimit: number;           // Default: 60 seconds
-    reconnectionGracePeriod: number; // Default: 30 seconds
-  };
-  createdAt: string;
-  startedAt?: string;
-  endedAt?: string;
-}
-
-interface Player {
-  id: string;                        // game_player_id (secure)
-  profile: {
-    displayName: string;
-    avatar?: string;
-    gamePreferences: {
-      sound: boolean;
-      animations: boolean;
-      autoPassBack: boolean;
-    };
-    statistics: PlayerStatistics;
-  };
-  connection: {
-    isOnline: boolean;
-    lastSeen: string;
-    joinedAt: string;
-  };
-  gameState?: {                      // Only when in game
-    hand: Card[];
-    penaltyPile: {
-      cockroach: Card[];
-      mouse: Card[];
-      bat: Card[];
-      frog: Card[];
-    };
-    turnPosition: number;
-    isReady: boolean;
-    score: number;
-    hasLost: boolean;
-  };
-}
-
-interface GamePlayer extends Player {
-  gameId: string;
-  gameRole: 'host' | 'player';
-  gameState: PlayerGameState;       // Always present
-}
-
-interface Card {
-  id: string;
-  creatureType: 'cockroach' | 'mouse' | 'bat' | 'frog';
-  location: 'deck' | 'hand' | 'penalty' | 'in_play';
-  ownerId?: string;                 // game_player_id when owned
-}
-
-interface Round {
-  id: string;
-  gameId: string;
-  cardId: string;
-  initiatingPlayerId: string;       // game_player_id
-  targetPlayerId: string;           // game_player_id
-  claim: 'cockroach' | 'mouse' | 'bat' | 'frog';
-  response?: {
-    type: 'believe' | 'disbelieve' | 'pass_back';
-    timestamp: string;
-  };
-  outcome?: {
-    winner: string;                 // game_player_id
-    loser: string;                  // game_player_id
-    penaltyCard: Card;
-  };
-  createdAt: string;
-  completedAt?: string;
-}
-```
-
-### Database Function Interfaces
-
-```typescript
-// Secure player creation using database function
-interface CreatePlayerRequest {
-  gameId: string;
-  displayName: string;
-  gameRole?: 'host' | 'player';
-}
-
-// Database function: get_or_create_player_for_game
-function get_or_create_player_for_game(
-  p_device_id: string,
-  p_display_name: string, 
-  p_game_id: string,
-  p_game_role?: string
-): string; // Returns game_player_id
-```
+**Action Data**: Card IDs, creature types, claim details stored as JSONB
+**Security**: References public_profiles for player identification
 
 ## Security Architecture
 
-### Row Level Security (RLS) Policies
+### Row Level Security (RLS)
+All tables implement RLS policies for data isolation:
 
 ```sql
--- Players can only see players in their games
-CREATE POLICY "Players can view game participants" ON players
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM players p2 
-      WHERE p2.game_id = players.game_id 
-      AND p2.public_profile_id IN (
-        SELECT pp.id FROM public_profiles pp
-        JOIN profiles pr ON pp.profile_id = pr.id
-        WHERE pr.user_id = auth.uid()
-      )
-    )
-  );
-
--- Users can only update their own public profile
-CREATE POLICY "Users can update own profile" ON public_profiles
-  FOR UPDATE USING (
-    profile_id IN (
-      SELECT id FROM profiles WHERE user_id = auth.uid()
-    )
-  );
-
--- Game data is visible to participants only
-CREATE POLICY "Game visibility" ON games
-  FOR SELECT USING (
-    id IN (
-      SELECT game_id FROM players 
-      WHERE public_profile_id IN (
-        SELECT pp.id FROM public_profiles pp
-        JOIN profiles pr ON pp.profile_id = pr.id
-        WHERE pr.user_id = auth.uid()
-      )
-    )
-  );
-```
-
-### Security Benefits
-
-1. **Secure Indirection**: `game_player_id` prevents auth.users.id exposure
-2. **Domain Separation**: Public vs private data clearly separated  
-3. **Audit Trail**: All actions logged in game_actions table
-4. **Scalability**: UUID-based keys support massive scale
-5. **Privacy**: Users control what profile data is public
-
-## Realtime Subscriptions
-
-### Game State Updates
-```typescript
-// Subscribe to game changes
-supabase
-  .channel(`game-${gameId}`)
-  .on('postgres_changes', 
-    { event: '*', schema: 'public', table: 'games', filter: `id=eq.${gameId}` },
-    (payload) => handleGameStateChange(payload)
+-- Users can view games they participate in
+CREATE POLICY "Users can view games they participate in" ON games
+FOR SELECT USING (
+  id IN (
+    SELECT game_id FROM game_participants
+    WHERE player_id = auth.uid()
   )
-  .subscribe();
+);
 
-// Subscribe to game actions (event sourcing)
-supabase
-  .channel(`actions-${gameId}`)
-  .on('postgres_changes',
-    { event: 'INSERT', schema: 'public', table: 'game_actions', filter: `game_id=eq.${gameId}` },
-    (payload) => handleGameAction(payload)
-  )
-  .subscribe();
-
-// Subscribe to player presence
-supabase
-  .channel(`players-${gameId}`)
-  .on('postgres_changes',
-    { event: 'UPDATE', schema: 'public', table: 'players', filter: `game_id=eq.${gameId}` },
-    (payload) => handlePlayerUpdate(payload)
-  )
-  .subscribe();
+-- Authenticated users can create games
+CREATE POLICY "Authenticated users can create games" ON games
+FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 ```
 
-## Data Flow Patterns
+### Verification System
+Trust-based access control through `verification_status`:
 
-### 1. User Registration & Profile Creation
-```
-1. User signs up → auth.users entry created
-2. Trigger creates profiles entry linked to auth.users.id
-3. User completes profile → public_profiles entry created
-4. User can now join games using secure public_profile_id
+- **unverified**: New users (low-stakes games only)
+- **pending**: Under review (medium-stakes allowed)
+- **verified**: Full access (all games)
+- **rejected**: Limited access (re-verification required)
+- **suspended**: No access (account review needed)
+
+## Data Relationships
+
+```mermaid
+erDiagram
+    auth_users ||--|| profiles : "id"
+    profiles ||--o{ public_profiles : "profile_id"
+    public_profiles ||--o{ games : "creator_id"
+    public_profiles ||--o{ game_participants : "player_id"
+    public_profiles ||--o{ game_actions : "player_id"
+    games ||--o{ game_participants : "game_id"
+    games ||--o{ game_rounds : "game_id"
+    games ||--o{ game_actions : "game_id"
+    game_rounds ||--o{ game_actions : "round_id"
+    game_participants ||--o{ game_rounds : "claiming_player_id"
+    game_participants ||--o{ game_rounds : "target_player_id"
+    game_participants ||--o{ game_rounds : "final_guesser_id"
+    game_participants ||--o{ game_rounds : "penalty_receiver_id"
 ```
 
-### 2. Game Joining Flow
+### Security Architecture Layers
+
 ```
-1. Client calls: get_or_create_player_for_game(device_id, display_name, game_id)
-2. Function resolves user → profile → public_profile → creates players entry
-3. Returns secure game_player_id for all subsequent game operations
-4. Realtime notifies other players of new participant
+Authentication Layer: auth.users ↔ profiles (most secure)
+    ↓
+Public Layer: public_profiles (controlled public information)
+    ↓
+Game Layer: game_participants (game-scoped IDs)
+    ↓
+Action Layer: game_rounds, game_actions (game-scoped references only)
 ```
 
-### 3. Game Action Flow
-```
-1. Player performs action (play card, respond to round)
-2. Insert into game_actions table (event sourcing)
-3. Database triggers update game state tables
-4. Realtime pushes updates to all game participants
-5. Clients update UI optimistically, then sync with server state
+## Views and Functions
+
+### leaderboard View
+Ranking system based on Cockroach Poker statistics:
+
+```sql
+CREATE VIEW leaderboard AS
+SELECT
+  pp.id,
+  pp.display_name,
+  pp.games_played,
+  pp.games_won,
+  pp.win_rate,
+  pp.updated_at,
+  ROW_NUMBER() OVER (ORDER BY pp.win_rate DESC, pp.games_won DESC) as rank
+FROM public_profiles pp
+WHERE pp.games_played > 0
+ORDER BY pp.win_rate DESC, pp.games_won DESC;
 ```
 
-### 4. Secure Data Access
+### Helper Functions
+
+```sql
+-- Check if player has lost (3 of same creature type)
+CREATE OR REPLACE FUNCTION check_player_loss(participant_id uuid)
+RETURNS TABLE(has_lost boolean, losing_creature creature_type)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    participant_record RECORD;
+BEGIN
+    SELECT * INTO participant_record
+    FROM public.game_participants
+    WHERE id = participant_id;
+
+    -- Check each creature type for 3 or more cards
+    IF jsonb_array_length(participant_record.penalty_cockroach) >= 3 THEN
+        RETURN QUERY SELECT true, 'cockroach'::creature_type;
+    ELSIF jsonb_array_length(participant_record.penalty_mouse) >= 3 THEN
+        RETURN QUERY SELECT true, 'mouse'::creature_type;
+    ELSIF jsonb_array_length(participant_record.penalty_bat) >= 3 THEN
+        RETURN QUERY SELECT true, 'bat'::creature_type;
+    ELSIF jsonb_array_length(participant_record.penalty_frog) >= 3 THEN
+        RETURN QUERY SELECT true, 'frog'::creature_type;
+    ELSE
+        RETURN QUERY SELECT false, NULL::creature_type;
+    END IF;
+END;
+$$;
+
+-- Add penalty card to appropriate pile
+CREATE OR REPLACE FUNCTION add_penalty_card(
+    participant_id uuid,
+    card_data jsonb
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    creature_type_value text;
+BEGIN
+    creature_type_value := card_data->>'creatureType';
+
+    CASE creature_type_value
+        WHEN 'cockroach' THEN
+            UPDATE public.game_participants
+            SET penalty_cockroach = penalty_cockroach || card_data,
+                updated_at = now()
+            WHERE id = participant_id;
+        WHEN 'mouse' THEN
+            UPDATE public.game_participants
+            SET penalty_mouse = penalty_mouse || card_data,
+                updated_at = now()
+            WHERE id = participant_id;
+        WHEN 'bat' THEN
+            UPDATE public.game_participants
+            SET penalty_bat = penalty_bat || card_data,
+                updated_at = now()
+            WHERE id = participant_id;
+        WHEN 'frog' THEN
+            UPDATE public.game_participants
+            SET penalty_frog = penalty_frog || card_data,
+                updated_at = now()
+            WHERE id = participant_id;
+    END CASE;
+
+    -- Update cards remaining count
+    UPDATE public.game_participants
+    SET cards_remaining = jsonb_array_length(hand_cards),
+        updated_at = now()
+    WHERE id = participant_id;
+END;
+$$;
 ```
-Client Query: "Get my game data"
-→ RLS ensures user can only see own games
-→ Uses game_player_id for all game operations  
-→ Never exposes auth.users.id or profiles.id
-→ Public data comes via public_players view
-```
+
+## Data Flow Examples
+
+### Player Registration
+1. User signs up → `auth.users` created
+2. Basic profile → `profiles` record created (authentication layer)
+3. Public profile → `public_profiles` record created with display name (public layer)
+
+### Cockroach Poker Game Flow
+1. Player creates game → `games` record with shuffled 24-card deck
+2. Second player joins → `game_participants` records for both players (positions 1 and 2)
+3. Game starts → cards dealt (9 each), 6 remain hidden in `game_deck`
+4. Round begins → first player passes card with claim
+5. Actions recorded → `game_actions` and `game_rounds` records (using secure references)
+6. Round resolves → penalty card assigned to appropriate pile, winner determined if someone gets 3 of same type
+
+### Typical Round Flow
+1. Player A selects card from hand
+2. Player A claims it's creature type X (truth or lie) → `game_rounds` record created
+3. Player B either:
+   - Guesses (truth/lie) → round ends, penalty assigned via `add_penalty_card()` function
+   - Passes back → Player A must guess or pass to B again (`pass_count` incremented)
+4. Penalty card goes to appropriate penalty pile (cockroach/mouse/bat/frog)
+5. Check for loss condition via `check_player_loss()` function (3 of same creature type)
+6. Next round begins with penalty receiver as claiming player
+
+### Statistics Updates
+1. Game completes when player gets 3 of same creature type
+2. Winner determined (other player, has_lost = false)
+3. Statistics updated → `public_profiles` games_played and games_won incremented
 
 ## Performance Considerations
 
-### Database Indexes
-```sql
--- Critical performance indexes
-CREATE INDEX idx_players_game_id ON players(game_id);
-CREATE INDEX idx_players_public_profile_id ON players(public_profile_id);  
-CREATE INDEX idx_cards_game_id_location ON cards(game_id, location);
-CREATE INDEX idx_cards_owner_id ON cards(owner_id);
-CREATE INDEX idx_game_actions_game_id_created ON game_actions(game_id, created_at);
-CREATE INDEX idx_rounds_game_id ON rounds(game_id);
-```
+- **Indexes**: 11 strategic performance indexes for games, participants, rounds, and actions
+- **JSONB**: Efficient storage for flexible game data (cards, penalty piles)
+- **ENUM Types**: Type-safe constraints for creature types, game status, player status
+- **Connection Pooling**: Supabase handles automatically
+- **Real-time**: Built-in subscription support for live gameplay
+- **Materialized Views**: For complex statistics queries (leaderboard)
 
-### Caching Strategy
-- **Game State**: Cache current game via players.game_id
-- **Player Profiles**: Cache public_profiles data per game session
-- **Card Positions**: Cache hand/penalty pile states
-- **Statistics**: Cache computed statistics with periodic updates
+## Migration History
 
-## Migration from Legacy Architecture
+### Major Migration (2025-09-20): Poker → Cockroach Poker
+Complete transformation from Texas Hold'em poker to Cockroach Poker:
 
-### Deprecated Patterns (Legacy Compatibility)
-- ❌ `device_id` based authentication
-- ❌ Direct `auth.users.id` references  
-- ❌ `display_name` in players table
-- ❌ `is_connected` field naming
+**1. ENUM Types Added**:
+- `creature_type`: 'cockroach', 'mouse', 'bat', 'frog'
+- `game_status`: 'waiting', 'in_progress', 'completed', 'cancelled'
+- `player_status`: 'joined', 'playing', 'disconnected', 'left'
 
-### Modern Patterns (Current)
-- ✅ Enterprise authentication flow
-- ✅ Secure indirection with UUIDs
-- ✅ Domain separation (public vs private data)
-- ✅ Event sourcing with game_actions
-- ✅ Row Level Security throughout
+**2. Security Enhancement**:
+- **Before**: Direct `profiles(id)` references in game rounds
+- **After**: Secure `game_participants(id)` references for game-scoped access control
+- **Benefit**: Complete isolation between authentication and game data
 
-This enterprise architecture provides Discord/Steam-level security and scalability while maintaining backwards compatibility during the transition period.
+**3. Table Structure Changes**:
+- **games**: Removed poker columns (game_settings, started_at, completed_at, winner_player_id)
+- **game_participants**: Removed poker columns (left_at, seat_position, final_position, score, is_active, is_ready, game_metadata)
+- **game_rounds**: Removed poker columns (status, started_at, round_data)
+- **game_actions**: Removed poker columns (action_timestamp, is_valid, validation_errors)
+
+**4. Cockroach Poker Features Added**:
+- **Penalty Piles**: 4 separate JSONB arrays per creature type
+- **Card Tracking**: Hand cards, cards remaining, loss detection
+- **Round Mechanics**: Claiming, passing, truth/lie guessing
+- **Game Functions**: `check_player_loss()`, `add_penalty_card()`
+
+**5. Action Types Updated**:
+- **Removed**: 'bet', 'call', 'fold', 'raise', 'check', 'all_in'
+- **Added**: 'pass_card', 'make_claim', 'guess_truth', 'guess_lie', 'pass_back', 'receive_penalty'
+
+**6. Performance Optimization**:
+- 11 strategic indexes added for game queries
+- Optimized for 2-player real-time gameplay
+
+**Migration Result**: Clean, secure, Cockroach Poker-specific database schema with enhanced security architecture and eliminated technical debt.

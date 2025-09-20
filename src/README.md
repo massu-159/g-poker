@@ -1,50 +1,57 @@
-# Welcome to your Expo app 👋
+# G-Poker Enterprise Architecture
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+## Directory Structure
 
-## Get started
+### Core Libraries (`lib/`)
+- **`entities/`** - Enterprise data models with security metadata
+- **`gameLogic/`** - Game logic with security validation
+- **`security/`** - Security utilities and authentication helpers
+- **`audit/`** - Audit trail utilities and event sourcing
+- **`logging/`** - Structured logging with correlation IDs
 
-1. Install dependencies
+### Services (`services/`)
+- Authentication, game, realtime, matchmaking, and storage services
+- All services implement security validation and audit logging
 
-   ```bash
-   npm install
-   ```
+### State Management (`stores/`)
+- Zustand stores with security context
+- TanStack Query with authentication interceptors
 
-2. Start the app
+### UI Components (`components/`)
+- **`auth/`** - Authentication screens and forms
+- **`cards/`** - Card display with secure data handling
+- **`game/`** - Game UI with authenticated player display
+- **`animations/`** - Animations with security state validation
+- **`security/`** - Security indicators and status displays
 
-   ```bash
-   npx expo start
-   ```
+### Screens (`screens/`)
+- All screens implement authentication guards
+- Secure gameplay context throughout
 
-In the output, you'll find options to open the app in a
+### Tests (`tests/`)
+- **`contract/security/`** - Authentication, RLS, indirection tests
+- **`contract/audit/`** - Audit trail and compliance tests
+- **`contract/supabase_api/`** - Secure API operation tests
+- **`unit/`** - Unit tests with security context
+- **`integration/`** - End-to-end security flow tests
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Configuration (`config/`)
+- Environment configuration with security settings
+- Enterprise deployment configurations
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Security Architecture
 
-## Get a fresh project
+### Authentication Flow
+- Supabase Auth with enterprise session management
+- Discord/Steam-style secure indirection via `game_player_id`
+- Row Level Security (RLS) policies for data isolation
 
-When you're ready, run:
+### Audit System
+- Complete event sourcing for game actions
+- Structured logging with correlation IDs
+- Compliance-ready audit trails
 
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Enterprise Patterns
+- Secure indirection for player identity
+- Comprehensive security validation
+- Enterprise-grade error handling and monitoring

@@ -1,227 +1,233 @@
-# Implementation Plan: ごきぶりポーカー React Native App
+# G-Poker Development Plan
 
-**Branch**: `001-reactnative-web` | **Date**: 2025-09-07 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/001-reactnative-web/spec.md`
+## Project Overview
 
-## Execution Flow (/plan command scope)
-```
-1. Load feature spec from Input path
-   → ✅ Loaded: Online multiplayer ごきぶりポーカー with 2 players, 4 creature types, 9 cards each
-2. Fill Technical Context (scan for NEEDS CLARIFICATION)
-   → ✅ React Native + Expo, Zustand, TanStack Query, Shopify Restyle
-   → ✅ Project Type: Mobile app (React Native + Backend API)
-   → ✅ Structure Decision: Mobile + API (Option 3)
-3. Evaluate Constitution Check section below
-   → ✅ Initial Constitution Check: PASS (documented below)
-   → ✅ Progress Tracking: Initial Constitution Check
-4. Execute Phase 0 → research.md
-   → ✅ All technical clarifications resolved through user input
-5. Execute Phase 1 → contracts, data-model.md, quickstart.md, CLAUDE.md
-6. Re-evaluate Constitution Check section
-   → Progress Tracking: Post-Design Constitution Check
-7. Plan Phase 2 → Describe task generation approach (DO NOT create tasks.md)
-8. STOP - Ready for /tasks command
-```
+G-Poker is a React Native multiplayer poker application with enterprise-grade security and real-time gameplay. Built with Expo, TypeScript, and Supabase backend.
 
-**IMPORTANT**: The /plan command STOPS at step 7. Phases 2-4 are executed by other commands:
-- Phase 2: /tasks command creates tasks.md
-- Phase 3-4: Implementation execution (manual or via tools)
+## Development Phases
 
-## Summary
+### ✅ Phase 1: Foundation Setup (COMPLETED)
+**Duration**: 1-2 days
+**Status**: Completed
 
-Online multiplayer ごきぶりポーカー (Cockroach Poker) mobile app where 2 players on separate devices play the bluffing card game. Each player receives 9 cards from a 24-card deck (4 creature types × 6 cards), with 6 cards hidden for randomness. Players take turns passing cards with creature claims (truth or lies), and the goal is to avoid collecting 3 of the same creature type. Requires real-time synchronization, matchmaking, and network resilience for smooth online gameplay.
+- [x] Project initialization with Expo and TypeScript
+- [x] Supabase integration and configuration
+- [x] Basic project structure and dependencies
+- [x] Git repository setup
 
-Technical approach: React Native with Expo for cross-platform mobile development, Supabase for backend-as-a-service with built-in real-time capabilities, and modern state management with Zustand and TanStack Query.
+### ✅ Phase 2: Database Architecture (COMPLETED)
+**Duration**: 2-3 days
+**Status**: Completed
 
-## Technical Context
-**Language/Version**: TypeScript 5.0+, React Native 0.73+  
-**Primary Dependencies**: Expo SDK 50+, Zustand, TanStack Query, Shopify Restyle, Supabase  
-**Storage**: SQLite (local), Supabase (PostgreSQL + realtime)  
-**Testing**: Jest + React Native Testing Library, Supabase local development  
-**Target Platform**: iOS 15+, Android 8+, App Store distribution  
-**Project Type**: mobile - React Native app + Supabase backend  
-**Performance Goals**: <100ms card action response, 60fps animations, <3s game start  
-**Constraints**: Offline graceful degradation, <50MB app size, battery efficient  
-**Scale/Scope**: 1k concurrent games, 5 screens, 10k registered users
+- [x] Database schema design and implementation
+- [x] Row Level Security (RLS) policies
+- [x] User authentication and profile system
+- [x] Game and player relationship modeling
+- [x] Data migration and testing
 
-## Constitution Check
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+### ✅ Phase 3: Enterprise Security (COMPLETED)
+**Duration**: 3-4 days
+**Status**: Completed
 
-**Simplicity**:
-- Projects: 1 (mobile app) - under max 3 ✅
-- Using framework directly? Yes - React Native & Supabase directly ✅
-- Single data model? Yes - unified game state model ✅
-- Avoiding patterns? Yes - no Repository/UoW, direct database access ✅
+#### Phase 3.1: Security Foundation ✅
+- [x] Enterprise logging system with correlation IDs
+- [x] Structured audit trails and security events
+- [x] Rate limiting and input validation
+- [x] Authentication manager with security monitoring
+- [x] Unified security service integration
 
-**Architecture**:
-- EVERY feature as library? Yes - game-logic, supabase-client, ui-components libraries ✅
-- Libraries listed: 
-  - game-logic: Core ごきぶりポーカー rules and state management
-  - supabase-client: Supabase integration with realtime subscriptions
-  - ui-components: Reusable React Native components
-- CLI per library: --help/--version/--format for testing and utilities ✅
-- Library docs: llms.txt format planned ✅
+#### Phase 3.2: Schema Simplification ✅
+- [x] Database schema optimization for small-scale app
+- [x] Removal of unnecessary complexity (audit_logs, players table)
+- [x] Direct reference patterns (public_profiles-centric)
+- [x] Column consolidation and renaming
+- [x] Documentation updates
 
-**Testing (NON-NEGOTIABLE)**:
-- RED-GREEN-Refactor cycle enforced? Yes - tests written first ✅
-- Git commits show tests before implementation? Yes - commit strategy planned ✅
-- Order: Contract→Integration→E2E→Unit strictly followed? Yes ✅
-- Real dependencies used? Yes - actual SQLite, real Supabase instance ✅
-- Integration tests for: new libraries, contract changes, Supabase realtime ✅
-- FORBIDDEN: Implementation before test, skipping RED phase ✅
+### 🔄 Phase 4: Core UI Implementation (CURRENT)
+**Duration**: 5-7 days
+**Status**: In Progress
 
-**Observability**:
-- Structured logging included? Yes - JSON logs with correlation IDs ✅
-- Frontend logs → backend? Yes - centralized logging pipeline ✅
-- Error context sufficient? Yes - full error context with game state ✅
+#### Phase 4.1: Authentication UI
+- [ ] Login/Register screens
+- [ ] Profile management interface
+- [ ] Verification status display
+- [ ] Password reset functionality
 
-**Versioning**:
-- Version number assigned? 1.0.0 (MAJOR.MINOR.BUILD) ✅
-- BUILD increments on every change? Yes - automated via CI ✅
-- Breaking changes handled? Yes - API versioning strategy ✅
+#### Phase 4.2: Game Lobby System
+- [ ] Game creation interface
+- [ ] Game browser and joining
+- [ ] Player list and status display
+- [ ] Real-time lobby updates
 
-## Project Structure
+#### Phase 4.3: Game Interface
+- [ ] Poker table layout
+- [ ] Card display and animations
+- [ ] Player positions and avatars
+- [ ] Action buttons (bet, fold, call, raise)
 
-### Documentation (this feature)
-```
-specs/001-reactnative-web/
-├── plan.md              # This file (/plan command output)
-├── research.md          # Phase 0 output (/plan command)
-├── data-model.md        # Phase 1 output (/plan command)
-├── quickstart.md        # Phase 1 output (/plan command)
-├── contracts/           # Phase 1 output (/plan command)
-└── tasks.md             # Phase 2 output (/tasks command - NOT created by /plan)
-```
+### 📋 Phase 5: Game Logic Implementation
+**Duration**: 7-10 days
+**Status**: Planned
 
-### Source Code (repository root)
-```
-# Option 1: Single Project (React Native + Supabase Backend)
-src/
-├── components/          # Reusable UI components (cards, game board)
-├── screens/             # Game screens (lobby, game, results)
-├── services/            # Supabase client, realtime subscriptions
-├── stores/              # Zustand stores for game state
-└── lib/                # Shared utilities and game logic
+#### Phase 5.1: Core Poker Mechanics
+- [ ] Hand evaluation and ranking
+- [ ] Betting logic and pot management
+- [ ] Turn-based action system
+- [ ] Game state management
 
-tests/
-├── integration/         # Supabase integration tests
-├── unit/               # Component and service unit tests
-└── e2e/                # End-to-end game flow tests
+#### Phase 5.2: Round Management
+- [ ] Deal cards (hole cards, community cards)
+- [ ] Betting rounds (pre-flop, flop, turn, river)
+- [ ] Showdown and winner determination
+- [ ] Pot distribution
 
-supabase/
-├── migrations/          # Database schema migrations
-├── functions/           # Edge functions (if needed)
-└── config.toml         # Supabase configuration
-```
+#### Phase 5.3: Game Flow
+- [ ] Player joining/leaving mid-game
+- [ ] Disconnection handling
+- [ ] Game completion and statistics update
+- [ ] Next game transitions
 
-**Structure Decision**: Single Project (Option 1) - React Native app with Supabase backend-as-a-service
+### 🔄 Phase 6: Real-time Features
+**Duration**: 4-5 days
+**Status**: Planned
 
-## Phase 0: Outline & Research
+#### Phase 6.1: Supabase Realtime
+- [ ] Real-time game state synchronization
+- [ ] Player action broadcasting
+- [ ] Connection status monitoring
+- [ ] Conflict resolution
 
-Since user provided comprehensive technical context, minimal research needed:
+#### Phase 6.2: Live Updates
+- [ ] Chat system (optional)
+- [ ] Turn timers and timeouts
+- [ ] Spectator mode
+- [ ] Push notifications
 
-1. **Extract unknowns from Technical Context** above:
-   - ✅ React Native + Expo: User specified, well-documented
-   - ✅ Zustand + TanStack Query: User specified, proven state management
-   - ✅ Shopify Restyle: User specified, solid styling solution
-   - ✅ App Store distribution: Standard Expo workflow
+### 🧪 Phase 7: Testing & Quality Assurance
+**Duration**: 4-6 days
+**Status**: Planned
 
-2. **Generate and dispatch research agents**: 
-   - Research best practices for React Native + Supabase multiplayer games
-   - Evaluate Supabase realtime capabilities for card game scenarios
-   - Research Expo limitations for Supabase apps and App Store publishing
+#### Phase 7.1: Unit Testing
+- [ ] Game logic unit tests
+- [ ] Security service testing
+- [ ] Database function testing
+- [ ] Utility function testing
 
-3. **Consolidate findings** in `research.md`
+#### Phase 7.2: Integration Testing
+- [ ] End-to-end game flow testing
+- [ ] Multi-player scenarios
+- [ ] Real-time synchronization testing
+- [ ] Security vulnerability testing
 
-**Output**: research.md with technology stack validation and architecture decisions
+#### Phase 7.3: Performance Testing
+- [ ] Load testing with multiple games
+- [ ] Database query optimization
+- [ ] Network latency handling
+- [ ] Memory usage optimization
 
-## Phase 1: Design & Contracts
-*Prerequisites: research.md complete*
+### 🚀 Phase 8: Deployment & Production
+**Duration**: 3-4 days
+**Status**: Planned
 
-1. **Extract entities from feature spec** → `data-model.md`:
-   - Game: session state, players, deck, current turn
-   - Player: hand, penalty pile, connection status
-   - Card: creature type, location (hand/penalty/hidden)
-   - Round: current card exchange, claims, responses
+#### Phase 8.1: Build Configuration
+- [ ] Production environment setup
+- [ ] Environment variable configuration
+- [ ] Build optimization and bundling
+- [ ] Asset optimization
 
-2. **Generate API contracts** from functional requirements:
-   - Supabase table schemas: games, players, game_actions, game_players
-   - Supabase realtime channels: game-specific subscriptions
-   - Database functions: matchmaking, game logic validation
-   - Output database schemas to `/contracts/`
+#### Phase 8.2: Platform Deployment
+- [ ] Web deployment (Expo web)
+- [ ] iOS deployment preparation (TestFlight)
+- [ ] Android deployment preparation (Play Console)
+- [ ] App store assets and descriptions
 
-3. **Generate contract tests** from contracts:
-   - Supabase realtime subscription tests
-   - Database schema validation tests
-   - Row Level Security (RLS) policy tests
+#### Phase 8.3: Monitoring & Analytics
+- [ ] Error tracking setup (Sentry)
+- [ ] Analytics implementation
+- [ ] Performance monitoring
+- [ ] User feedback collection
 
-4. **Extract test scenarios** from user stories:
-   - Full game flow integration test
-   - Network disconnection recovery test
-   - Quickstart test = complete 2-player game
+## Technical Stack
 
-5. **Update CLAUDE.md incrementally**:
-   - Add React Native + game development context
-   - Include Supabase debugging and development techniques
-   - Update with Zustand + TanStack Query patterns
+### Frontend
+- **Framework**: React Native with Expo
+- **Language**: TypeScript
+- **UI Library**: React Native Elements / NativeBase
+- **Navigation**: React Navigation
+- **State Management**: React Context / Zustand
 
-**Output**: data-model.md, /contracts/*, failing tests, quickstart.md, CLAUDE.md
+### Backend
+- **Database**: Supabase (PostgreSQL)
+- **Authentication**: Supabase Auth
+- **Real-time**: Supabase Realtime
+- **File Storage**: Supabase Storage (for avatars)
 
-## Phase 2: Task Planning Approach
-*This section describes what the /tasks command will do - DO NOT execute during /plan*
+### Development Tools
+- **Version Control**: Git
+- **Code Quality**: ESLint, Prettier
+- **Testing**: Jest, React Native Testing Library
+- **CI/CD**: GitHub Actions / EAS Build
 
-**Task Generation Strategy**:
-- Load `/templates/tasks-template.md` as base
-- Generate tasks from Phase 1 design docs
-- Database schema → Supabase migration and RLS policy tasks [P]
-- Each entity → model creation + validation task [P] 
-- Game flow user story → integration test task
-- Mobile UI → component creation + screen assembly tasks
-- Supabase integration → realtime subscription implementation tasks
+## Success Criteria
 
-**Ordering Strategy**:
-- TDD order: Tests before implementation 
-- Dependency order: Database Schema → Models → Supabase Services → UI → Integration
-- Mark [P] for parallel execution (independent libraries)
-- Database and UI tasks can run in parallel after schema
+### Phase 4 (UI Implementation)
+- [ ] Complete authentication flow
+- [ ] Functional game lobby
+- [ ] Basic poker table interface
+- [ ] Responsive design for multiple screen sizes
 
-**Estimated Output**: 25-30 numbered, ordered tasks in tasks.md
+### Phase 5 (Game Logic)
+- [ ] Full poker hand evaluation
+- [ ] Complete betting mechanics
+- [ ] Proper game state transitions
+- [ ] Winner determination and payout
 
-**IMPORTANT**: This phase is executed by the /tasks command, NOT by /plan
+### Phase 6 (Real-time)
+- [ ] Synchronized multi-player gameplay
+- [ ] Sub-second action propagation
+- [ ] Graceful disconnection handling
+- [ ] 99%+ real-time message delivery
 
-## Phase 3+: Future Implementation
-*These phases are beyond the scope of the /plan command*
+### Phase 7 (Testing)
+- [ ] 90%+ code coverage
+- [ ] Zero critical security vulnerabilities
+- [ ] < 200ms average response time
+- [ ] Successful 10+ concurrent game testing
 
-**Phase 3**: Task execution (/tasks command creates tasks.md)  
-**Phase 4**: Implementation (TDD execution of tasks.md)  
-**Phase 5**: Validation (E2E tests, App Store preparation, performance validation)
+### Phase 8 (Production)
+- [ ] Successful deployment to all platforms
+- [ ] Production monitoring active
+- [ ] User onboarding flow complete
+- [ ] Performance metrics within targets
 
-## Complexity Tracking
-*Constitution Check passed - no violations to justify*
+## Risk Mitigation
 
-No constitutional violations detected. Architecture follows all principles:
-- Simple structure with 1 project (mobile app only)
-- Direct framework usage without unnecessary abstractions (React Native + Supabase)
-- Library-first approach with clear separation of concerns
-- Comprehensive testing strategy following TDD principles
-- Significant complexity reduction by eliminating custom backend server
+### Technical Risks
+- **Real-time synchronization issues**: Implement robust conflict resolution
+- **Performance bottlenecks**: Regular performance testing and optimization
+- **Security vulnerabilities**: Comprehensive security testing and audit
 
-## Progress Tracking
-*This checklist is updated during execution flow*
+### Project Risks
+- **Scope creep**: Strict adherence to phase definitions
+- **Timeline delays**: Regular milestone reviews and adjustments
+- **Resource constraints**: Prioritize core features over nice-to-haves
 
-**Phase Status**:
-- [ ] Phase 0: Research complete (/plan command)
-- [ ] Phase 1: Design complete (/plan command)
-- [ ] Phase 2: Task planning approach described (/plan command - describe approach only)
-- [ ] Phase 3: Tasks generated (/tasks command)
-- [ ] Phase 4: Implementation complete
-- [ ] Phase 5: Validation passed
+## Next Steps (Phase 4 Focus)
 
-**Gate Status**:
-- [ ] Initial Constitution Check: PASS
-- [ ] Post-Design Constitution Check: PASS
-- [ ] All NEEDS CLARIFICATION resolved
-- [ ] Complexity deviations documented (none required)
+1. **Authentication UI Development**
+   - Create login/register screens with form validation
+   - Implement profile management interface
+   - Add verification status indicators
 
----
-*Based on Constitution v2.1.1 - See `/memory/constitution.md`*
+2. **Game Lobby Implementation**
+   - Design and implement game creation flow
+   - Build game browser with filtering options
+   - Add real-time lobby updates
+
+3. **Basic Game Interface**
+   - Create poker table layout component
+   - Implement card display system
+   - Add player position management
+
+**Target Completion**: End of current development cycle
+**Next Phase Start**: Phase 5 (Game Logic Implementation)
