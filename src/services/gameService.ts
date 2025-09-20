@@ -61,11 +61,11 @@ export class GameService {
         return { success: false, error: 'Authentication required' };
       }
 
-      // Get player's profile
+      // Get player's public profile (fixed: use public_profiles instead of profiles)
       const { data: profile, error: profileError } = await supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('profile_id', user.id)
         .single();
 
       if (profileError || !profile) {
@@ -77,7 +77,7 @@ export class GameService {
 
       // Create the game (exactly 2 players for Cockroach Poker)
       const gameData: GameInsert = {
-        creator_id: user.id,
+        creator_id: profile.id, // Use public_profiles.id instead of auth.user.id
         status: 'waiting',
         max_players: 2, // Fixed for Cockroach Poker
         current_player_count: 0,
@@ -101,7 +101,7 @@ export class GameService {
       // Add creator as first participant (Player 1)
       const participantData: GameParticipantInsert = {
         game_id: game.id,
-        player_id: user.id,
+        player_id: profile.id, // Use public_profiles.id
         status: 'joined',
         position: 1, // Player 1
         hand_cards: [], // Will be dealt when game starts
@@ -152,11 +152,11 @@ export class GameService {
         return { success: false, error: 'Authentication required' };
       }
 
-      // Get player's profile
+      // Get player's public profile (fixed: use public_profiles instead of profiles)
       const { data: profile, error: profileError } = await supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('profile_id', user.id)
         .single();
 
       if (profileError || !profile) {
@@ -187,7 +187,7 @@ export class GameService {
         .from('game_participants')
         .select('*')
         .eq('game_id', params.gameId)
-        .eq('player_id', user.id)
+        .eq('player_id', profile.id) // Use public_profiles.id
         .single();
 
       if (existingParticipant) {
@@ -197,7 +197,7 @@ export class GameService {
       // Add participant as Player 2 (since creator is Player 1)
       const participantData: GameParticipantInsert = {
         game_id: params.gameId,
-        player_id: user.id,
+        player_id: profile.id, // Use public_profiles.id
         status: 'joined',
         position: 2, // Player 2
         hand_cards: [], // Will be dealt when game starts
@@ -248,6 +248,17 @@ export class GameService {
         return { success: false, error: 'Authentication required' };
       }
 
+      // Get player's public profile
+      const { data: profile, error: profileError } = await supabase
+        .from('public_profiles')
+        .select('id')
+        .eq('profile_id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        return { success: false, error: 'Player profile not found' };
+      }
+
       // Update participant status
       const { error: participantError } = await supabase
         .from('game_participants')
@@ -255,7 +266,7 @@ export class GameService {
           status: 'left',
         })
         .eq('game_id', gameId)
-        .eq('player_id', user.id);
+        .eq('player_id', profile.id); // Use public_profiles.id
 
       if (participantError) {
         return { success: false, error: participantError.message };
@@ -297,6 +308,17 @@ export class GameService {
         return { success: false, error: 'Authentication required' };
       }
 
+      // Get player's public profile
+      const { data: profile, error: profileError } = await supabase
+        .from('public_profiles')
+        .select('id')
+        .eq('profile_id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        return { success: false, error: 'Player profile not found' };
+      }
+
       // For Cockroach Poker, we can mark ready in the participant status
       // This is simpler than the poker version since we don't have separate ready states
       if (isReady) {
@@ -304,7 +326,7 @@ export class GameService {
           .from('game_participants')
           .update({ status: 'joined' }) // Ready to play
           .eq('game_id', gameId)
-          .eq('player_id', user.id);
+          .eq('player_id', profile.id); // Use public_profiles.id
 
         if (error) {
           return { success: false, error: error.message };
@@ -379,7 +401,7 @@ export class GameService {
         .from('game_participants')
         .select(`
           *,
-          player:profiles(*)
+          player:public_profiles(*)
         `)
         .eq('game_id', gameId)
         .neq('status', 'left')
@@ -410,7 +432,7 @@ export class GameService {
         .from('game_participants')
         .select(`
           *,
-          player:profiles(*)
+          player:public_profiles(*)
         `)
         .eq('game_id', gameId)
         .neq('status', 'left')
@@ -596,7 +618,7 @@ export class GameService {
     gameId: string,
     cardId: string,
     claimedCreatureType: CreatureType,
-    targetPlayerId: string
+    targetParticipantId: string
   ): Promise<GameOperationResult> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -605,12 +627,23 @@ export class GameService {
         return { success: false, error: 'Authentication required' };
       }
 
-      // Get current player's hand
+      // Get player's public profile
+      const { data: profile, error: profileError } = await supabase
+        .from('public_profiles')
+        .select('id')
+        .eq('profile_id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        return { success: false, error: 'Player profile not found' };
+      }
+
+      // Get current player's participant record and hand
       const { data: participant, error: participantError } = await supabase
         .from('game_participants')
-        .select('hand_cards')
+        .select('id, hand_cards')
         .eq('game_id', gameId)
-        .eq('player_id', user.id)
+        .eq('player_id', profile.id)
         .single();
 
       if (participantError || !participant) {
@@ -636,7 +669,7 @@ export class GameService {
           cards_remaining: updatedHand.length
         })
         .eq('game_id', gameId)
-        .eq('player_id', user.id);
+        .eq('player_id', profile.id);
 
       if (updateHandError) {
         return { success: false, error: 'Failed to update hand' };
@@ -651,16 +684,16 @@ export class GameService {
 
       const roundNumber = (game?.round_number || 0) + 1;
 
-      // Create new round
+      // Create new round (using participant IDs for game-scoped security)
       const { error: roundError } = await supabase
         .from('game_rounds')
         .insert({
           game_id: gameId,
           round_number: roundNumber,
           current_card: claimedCard,
-          claiming_player_id: user.id,
+          claiming_player_id: participant.id, // Use participant.id for security
           claimed_creature_type: claimedCreatureType,
-          target_player_id: targetPlayerId,
+          target_player_id: targetParticipantId, // Use participant.id for security
           pass_count: 0,
           is_completed: false,
         });
@@ -669,11 +702,18 @@ export class GameService {
         return { success: false, error: 'Failed to create round' };
       }
 
+      // Get target participant's player_id for game turn update
+      const { data: targetParticipant } = await supabase
+        .from('game_participants')
+        .select('player_id')
+        .eq('id', targetParticipantId)
+        .single();
+
       // Update game turn
       const { error: gameUpdateError } = await supabase
         .from('games')
         .update({
-          current_turn_player_id: targetPlayerId,
+          current_turn_player_id: targetParticipant?.player_id,
           round_number: roundNumber,
         })
         .eq('id', gameId);
@@ -702,6 +742,29 @@ export class GameService {
 
       if (!user) {
         return { success: false, error: 'Authentication required' };
+      }
+
+      // Get player's public profile
+      const { data: profile, error: profileError } = await supabase
+        .from('public_profiles')
+        .select('id')
+        .eq('profile_id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        return { success: false, error: 'Player profile not found' };
+      }
+
+      // Get current player's participant record
+      const { data: participant, error: participantError } = await supabase
+        .from('game_participants')
+        .select('id')
+        .eq('game_id', gameId)
+        .eq('player_id', profile.id)
+        .single();
+
+      if (participantError || !participant) {
+        return { success: false, error: 'Player not found in game' };
       }
 
       // Get round details
@@ -745,15 +808,15 @@ export class GameService {
         const actualIsTrue = currentCard.creatureType === round.claimed_creature_type;
         const guessIsCorrect = (response === 'truth') === actualIsTrue;
 
-        // Determine who gets the penalty card
-        const penaltyReceiverId = guessIsCorrect ? round.claiming_player_id : user.id;
+        // Determine who gets the penalty card (using participant IDs)
+        const penaltyReceiverId = guessIsCorrect ? round.claiming_player_id : participant.id;
 
         // Complete the round
         const { error: completeRoundError } = await supabase
           .from('game_rounds')
           .update({
             is_completed: true,
-            final_guesser_id: user.id,
+            final_guesser_id: participant.id, // Use participant.id for security
             guess_is_truth: response === 'truth',
             actual_is_truth: actualIsTrue,
             penalty_receiver_id: penaltyReceiverId,
@@ -765,19 +828,26 @@ export class GameService {
           return { success: false, error: 'Failed to complete round' };
         }
 
-        // Add penalty card to the appropriate pile
-        await this.addPenaltyCard(gameId, penaltyReceiverId, currentCard);
+        // Add penalty card to the appropriate pile (penaltyReceiverId is participant.id)
+        await this.addPenaltyCardByParticipantId(gameId, penaltyReceiverId, currentCard);
 
-        // Check if player has lost
-        const lossCheck = await this.checkForGameEnd(gameId, penaltyReceiverId);
+        // Check if player has lost (penaltyReceiverId is participant.id)
+        const lossCheck = await this.checkForGameEndByParticipantId(gameId, penaltyReceiverId);
         if (lossCheck.gameEnded) {
           return { success: true, data: { gameEnded: true, winner: lossCheck.winnerId } };
         }
 
+        // Get penalty receiver's player_id for game turn update
+        const { data: penaltyReceiverParticipant } = await supabase
+          .from('game_participants')
+          .select('player_id')
+          .eq('id', penaltyReceiverId)
+          .single();
+
         // Update game turn back to penalty receiver for next round
         const { error: gameUpdateError } = await supabase
           .from('games')
-          .update({ current_turn_player_id: penaltyReceiverId })
+          .update({ current_turn_player_id: penaltyReceiverParticipant?.player_id })
           .eq('id', gameId);
 
         if (gameUpdateError) {
@@ -793,7 +863,44 @@ export class GameService {
   }
 
   /**
-   * Add penalty card to player's penalty pile
+   * Add penalty card to player's penalty pile (using participant ID for security)
+   */
+  private async addPenaltyCardByParticipantId(gameId: string, participantId: string, card: Card): Promise<void> {
+    const { data: participant } = await supabase
+      .from('game_participants')
+      .select('penalty_cockroach, penalty_mouse, penalty_bat, penalty_frog')
+      .eq('id', participantId)
+      .eq('game_id', gameId)
+      .single();
+
+    if (!participant) return;
+
+    const updateData: any = {};
+
+    switch (card.creatureType) {
+      case 'cockroach':
+        updateData.penalty_cockroach = [...(participant.penalty_cockroach as Card[]), card];
+        break;
+      case 'mouse':
+        updateData.penalty_mouse = [...(participant.penalty_mouse as Card[]), card];
+        break;
+      case 'bat':
+        updateData.penalty_bat = [...(participant.penalty_bat as Card[]), card];
+        break;
+      case 'frog':
+        updateData.penalty_frog = [...(participant.penalty_frog as Card[]), card];
+        break;
+    }
+
+    await supabase
+      .from('game_participants')
+      .update(updateData)
+      .eq('id', participantId)
+      .eq('game_id', gameId);
+  }
+
+  /**
+   * Add penalty card to player's penalty pile (legacy method using player_id)
    */
   private async addPenaltyCard(gameId: string, playerId: string, card: Card): Promise<void> {
     const { data: participant } = await supabase
@@ -830,7 +937,65 @@ export class GameService {
   }
 
   /**
-   * Check if game has ended (player has 3 of same creature type)
+   * Check if game has ended (player has 3 of same creature type) using participant ID
+   */
+  private async checkForGameEndByParticipantId(gameId: string, participantId: string): Promise<{ gameEnded: boolean; winnerId?: string }> {
+    const { data: participant } = await supabase
+      .from('game_participants')
+      .select('penalty_cockroach, penalty_mouse, penalty_bat, penalty_frog, player_id')
+      .eq('id', participantId)
+      .eq('game_id', gameId)
+      .single();
+
+    if (!participant) return { gameEnded: false };
+
+    const penaltyCounts = {
+      cockroach: (participant.penalty_cockroach as Card[]).length,
+      mouse: (participant.penalty_mouse as Card[]).length,
+      bat: (participant.penalty_bat as Card[]).length,
+      frog: (participant.penalty_frog as Card[]).length,
+    };
+
+    // Check if player has lost (3 of same type)
+    for (const [creatureType, count] of Object.entries(penaltyCounts)) {
+      if (count >= 3) {
+        // Player has lost - update game status
+        await supabase
+          .from('game_participants')
+          .update({
+            has_lost: true,
+            losing_creature_type: creatureType,
+          })
+          .eq('id', participantId)
+          .eq('game_id', gameId);
+
+        // Get the other player as winner
+        const { data: allParticipants } = await supabase
+          .from('game_participants')
+          .select('player_id')
+          .eq('game_id', gameId)
+          .neq('player_id', participant.player_id);
+
+        const winnerId = allParticipants?.[0]?.player_id;
+
+        // Update game status to completed
+        await supabase
+          .from('games')
+          .update({
+            status: 'completed',
+            current_turn_player_id: null,
+          })
+          .eq('id', gameId);
+
+        return { gameEnded: true, winnerId };
+      }
+    }
+
+    return { gameEnded: false };
+  }
+
+  /**
+   * Check if game has ended (player has 3 of same creature type) using player ID (legacy)
    */
   private async checkForGameEnd(gameId: string, playerId: string): Promise<{ gameEnded: boolean; winnerId?: string }> {
     const { data: participant } = await supabase
