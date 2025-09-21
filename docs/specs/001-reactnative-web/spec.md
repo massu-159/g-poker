@@ -67,6 +67,11 @@ Two players want to enjoy the popular German bluffing card game "ごきぶりポ
 - **FR-014**: System MUST provide game rules and tutorial for new players
 - **FR-015**: System MUST keep 6 cards hidden from both players to add randomness and prevent perfect information
 - **FR-016**: System MUST allow players to start a new game after completing one
+- **FR-017**: System MUST display splash screen during app initialization
+- **FR-018**: System MUST show welcome screen with game introduction before authentication
+- **FR-019**: System MUST display Cockroach Poker rules tutorial after first login (skippable)
+- **FR-020**: System MUST track tutorial completion status per user to avoid repeated tutorial display
+- **FR-021**: System MUST provide skip button on tutorial screen that immediately proceeds to main app
 
 ### Key Entities *(include if feature involves data)*
 - **Game**: Represents a single online multiplayer game session with 2 players, tracks current turn and game state
@@ -356,13 +361,23 @@ interface PlayerAction {
 
 ### 6.2 Screen Specifications
 
-#### 6.2.1 Authentication Screens
+#### 6.2.1 Onboarding Screens
+- **Splash Screen**: App logo and loading indicator during initialization (2-3 seconds)
+- **Welcome Screen**: Game introduction, G-Poker branding, and "Get Started" button
+- **Tutorial Screen**: Cockroach Poker rules explanation with skip functionality
+  - Interactive rule display with creature types (Cockroach, Mouse, Bat, Frog)
+  - Game objective explanation (avoid 3 of same creature type)
+  - Basic gameplay flow demonstration
+  - Prominent "Skip" button in top-right corner
+  - "Continue" button to proceed after reading
+
+#### 6.2.2 Authentication Screens
 - **Login**: Email/password form with validation
 - **Register**: Account creation with terms acceptance
 - **Profile**: Display name, avatar, verification status
 - **Verification**: Document upload and status tracking
 
-#### 6.2.2 Game Screens
+#### 6.2.3 Game Screens
 - **Lobby**: Game list, creation, and joining interface
 - **Table**: Poker table with card display and action buttons
 - **Settings**: Game configuration and preferences

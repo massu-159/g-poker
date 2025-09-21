@@ -48,16 +48,25 @@ CREATE TABLE public_profiles (
   display_name VARCHAR,                         -- Player display name
   avatar_url TEXT,                             -- Player avatar
   verification_status VARCHAR DEFAULT 'unverified', -- Trust level
+
+  -- Game statistics
   games_played INTEGER DEFAULT 0,              -- Cockroach Poker games played
   games_won INTEGER DEFAULT 0,                 -- Games won
   win_rate NUMERIC DEFAULT 0.0,               -- Win percentage
+
+  -- Onboarding & Tutorial
+  tutorial_completed BOOLEAN DEFAULT FALSE,    -- Has completed Cockroach Poker tutorial
+  tutorial_completed_at TIMESTAMPTZ,          -- When tutorial was completed
+  onboarding_version VARCHAR DEFAULT '1.0.0', -- App version when onboarded
+
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
-**Purpose**: Public player information and game statistics
+**Purpose**: Public player information, game statistics, and onboarding state
 **Verification Levels**: `unverified`, `pending`, `verified`, `rejected`, `suspended`
+**Onboarding**: Tracks tutorial completion for first-time user experience
 **Security**: Accessible based on privacy settings and verification status
 
 #### 3. games (Cockroach Poker Sessions)

@@ -56,7 +56,12 @@
       "Bash(npm:*)",
       "mcp__supabase__list_migrations",
       "mcp__serena__think_about_collected_information",
-      "mcp__supabase__get_project_url"
+      "mcp__supabase__get_project_url",
+      "Bash(pkill:*)",
+      "Bash(open http://localhost:8081)",
+      "Bash(open http://localhost:8083)",
+      "Bash(open http://localhost:8084)",
+      "Bash(open http://localhost:3000)"
     ],
     "deny": [],
     "ask": []

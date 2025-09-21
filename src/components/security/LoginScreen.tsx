@@ -15,7 +15,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -66,8 +66,8 @@ export function LoginScreen() {
       const result = await signIn(email.trim(), password);
 
       if (result.success) {
-        // Navigation will be handled by auth state change
-        console.log('Login successful');
+        console.log('Login successful - redirecting to lobby');
+        router.replace('/lobby');
       } else {
         let errorMessage = result.error || 'Login failed';
 

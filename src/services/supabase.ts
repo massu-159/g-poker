@@ -412,6 +412,108 @@ export class AuthManager {
       console.error('Failed to update last seen timestamp:', error);
     }
   }
+
+  /**
+   * Update user profile tutorial completion status
+   */
+  async updateTutorialCompleted(userId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          tutorial_completed: true,
+          tutorial_completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Failed to update tutorial status:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to update tutorial completion:', error);
+      return { success: false, error: 'Failed to update tutorial status' };
+    }
+  }
+
+  /**
+   * Get user profile including tutorial status
+   */
+  async getUserProfile(userId: string): Promise<{ profile: Profile | null; error?: string }> {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Failed to fetch user profile:', error);
+        return { profile: null, error: error.message };
+      }
+
+      return { profile: data };
+    } catch (error) {
+      console.error('Failed to get user profile:', error);
+      return { profile: null, error: 'Failed to fetch user profile' };
+    }
+  }
+
+  /**
+   * Check if user has completed tutorial with enhanced error handling
+   */
+  async hasCompletedTutorial(userId: string): Promise<{ completed: boolean; error?: string }> {
+    try {
+      console.log('🔍 Checking tutorial completion for user:', userId);
+
+      if (!userId || typeof userId !== 'string') {
+        console.error('❌ Invalid userId provided:', userId);
+        return { completed: false, error: 'Invalid user ID' };
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('tutorial_completed, tutorial_completed_at, created_at')
+        .eq('id', userId)
+        .single();
+
+      console.log('📊 Database response:', { data, error });
+
+      if (error) {
+        console.error('❌ Database error checking tutorial status:', error);
+
+        // Handle specific error cases
+        if (error.code === 'PGRST116') {
+          console.log('👤 User profile not found, treating as new user');
+          return { completed: false, error: 'User profile not found' };
+        }
+
+        return { completed: false, error: error.message };
+      }
+
+      if (!data) {
+        console.log('📄 No profile data found for user');
+        return { completed: false, error: 'No profile data' };
+      }
+
+      const isCompleted = data.tutorial_completed === true;
+      console.log('✅ Tutorial completion check result:', {
+        userId,
+        tutorial_completed: data.tutorial_completed,
+        tutorial_completed_at: data.tutorial_completed_at,
+        created_at: data.created_at,
+        isCompleted
+      });
+
+      return { completed: isCompleted };
+    } catch (error: any) {
+      console.error('💥 Exception in tutorial completion check:', error);
+      return { completed: false, error: error.message || 'Failed to check tutorial status' };
+    }
+  }
 }
 
 // Export singleton instance

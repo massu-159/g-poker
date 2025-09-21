@@ -2,6 +2,70 @@
 
 ## Current Phase: Phase 4 - Core UI Implementation
 
+### Phase 4.0: Onboarding Flow 📋 PLANNED
+
+#### High Priority Tasks
+
+**Task 4.0.1: Splash Screen Implementation**
+- **Status**: 📋 Planned
+- **Priority**: High
+- **Estimate**: 3 hours
+- **Dependencies**: None
+- **Acceptance Criteria**:
+  - [ ] App logo display centered on screen
+  - [ ] Loading indicator animation
+  - [ ] 2-3 second display duration
+  - [ ] Smooth transition to welcome screen
+  - [ ] Responsive design for different screen sizes
+
+**Task 4.0.2: Welcome Screen Implementation**
+- **Status**: 📋 Planned
+- **Priority**: High
+- **Estimate**: 4 hours
+- **Dependencies**: Task 4.0.1
+- **Acceptance Criteria**:
+  - [ ] G-Poker branding and logo
+  - [ ] Game introduction text
+  - [ ] Cockroach Poker game preview/graphics
+  - [ ] "Get Started" button to proceed to authentication
+  - [ ] Mobile-optimized layout
+
+**Task 4.0.3: Tutorial Screen Implementation**
+- **Status**: 📋 Planned
+- **Priority**: High
+- **Estimate**: 6 hours
+- **Dependencies**: Phase 4.1 completion
+- **Acceptance Criteria**:
+  - [ ] Cockroach Poker rules explanation
+  - [ ] Interactive creature type display (Cockroach, Mouse, Bat, Frog)
+  - [ ] Game objective explanation (avoid 3 of same type)
+  - [ ] Basic gameplay flow demonstration
+  - [ ] Skip button in top-right corner
+  - [ ] Continue button to proceed to main app
+
+**Task 4.0.4: Tutorial State Management**
+- **Status**: 📋 Planned
+- **Priority**: Medium
+- **Estimate**: 3 hours
+- **Dependencies**: Task 4.0.3
+- **Acceptance Criteria**:
+  - [ ] Track tutorial completion in public_profiles table
+  - [ ] Check tutorial status on login
+  - [ ] Skip tutorial for returning users
+  - [ ] Update tutorial_completed flag after completion/skip
+
+#### Supporting Tasks
+
+**Task 4.0.5: Onboarding Navigation Flow**
+- **Status**: 📋 Planned
+- **Priority**: Medium
+- **Estimate**: 2 hours
+- **Acceptance Criteria**:
+  - [ ] Splash → Welcome → Authentication flow
+  - [ ] First login → Tutorial → Main app flow
+  - [ ] Returning user → Direct to main app flow
+  - [ ] Navigation state management
+
 ### Phase 4.1: Authentication UI 🔄 IN PROGRESS
 
 #### High Priority Tasks
@@ -315,15 +379,17 @@
 
 ## Current Sprint Focus (Next 2 Weeks)
 
-### Week 1: Authentication Foundation
-1. **Complete Task 4.1.1**: Login Screen Implementation
-2. **Complete Task 4.1.2**: Registration Screen Implementation
-3. **Start Task 4.1.3**: Profile Management Interface
+### Week 1: Onboarding Flow & Authentication Foundation
+1. **Complete Task 4.0.1**: Splash Screen Implementation
+2. **Complete Task 4.0.2**: Welcome Screen Implementation
+3. **Complete Task 4.1.1**: Login Screen Implementation
+4. **Start Task 4.1.2**: Registration Screen Implementation
 
-### Week 2: Authentication Completion & Lobby Start
-1. **Complete Task 4.1.3**: Profile Management Interface
-2. **Complete Task 4.1.4**: Password Reset Flow
-3. **Start Task 4.2.1**: Game Creation Interface
+### Week 2: Authentication Completion & Tutorial
+1. **Complete Task 4.1.2**: Registration Screen Implementation
+2. **Complete Task 4.0.3**: Tutorial Screen Implementation
+3. **Complete Task 4.0.4**: Tutorial State Management
+4. **Complete Task 4.0.5**: Onboarding Navigation Flow
 
 ### Success Metrics
 🎯 **実装ロジック優先方針に基づく成功指標**:

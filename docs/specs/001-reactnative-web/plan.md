@@ -44,8 +44,14 @@ G-Poker is a React Native multiplayer poker application with enterprise-grade se
 - [x] Documentation updates
 
 ### 🔄 Phase 4: Core UI Implementation (CURRENT)
-**Duration**: 5-7 days
+**Duration**: 7-9 days
 **Status**: In Progress
+
+#### Phase 4.0: Onboarding Flow
+- [ ] Splash screen with app logo and loading
+- [ ] Welcome screen with game introduction
+- [ ] Cockroach Poker tutorial screen (skippable)
+- [ ] Tutorial state management and navigation
 
 #### Phase 4.1: Authentication UI
 - [ ] Login/Register screens
@@ -59,11 +65,11 @@ G-Poker is a React Native multiplayer poker application with enterprise-grade se
 - [ ] Player list and status display
 - [ ] Real-time lobby updates
 
-#### Phase 4.3: Game Interface
-- [ ] Poker table layout
-- [ ] Card display and animations
-- [ ] Player positions and avatars
-- [ ] Action buttons (bet, fold, call, raise)
+#### Phase 4.3: Cockroach Poker Game Interface
+- [ ] 2-player game layout
+- [ ] Creature card display and animations
+- [ ] Player positions and penalty piles
+- [ ] Action buttons (claim, guess, pass)
 
 ### 📋 Phase 5: Game Logic Implementation
 **Duration**: 7-10 days

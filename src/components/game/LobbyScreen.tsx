@@ -3,7 +3,7 @@
  * Central hub for browsing games and creating new ones
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,6 +15,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useAuth } from '@/hooks/use-auth';
+import { authManager } from '@/services/supabase';
+import { TutorialModal } from '@/components/tutorial/TutorialModal';
 import { GameBrowser } from './GameBrowser';
 import { GameCreationInterface } from './GameCreationInterface';
 
@@ -33,12 +35,48 @@ export function LobbyScreen({
 }: LobbyScreenProps) {
   const { authState, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<LobbyTab>(initialTab);
+  const [showTutorialModal, setShowTutorialModal] = useState(false);
+  const [isCheckingTutorial, setIsCheckingTutorial] = useState(true);
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
   const textColor = useThemeColor({}, 'text');
   const tintColor = useThemeColor({}, 'tint');
   const iconColor = useThemeColor({}, 'icon');
+
+  // Check tutorial status on component mount
+  useEffect(() => {
+    checkTutorialStatus();
+  }, [authState.user?.id]);
+
+  const checkTutorialStatus = async () => {
+    if (!authState.user?.id) {
+      setIsCheckingTutorial(false);
+      return;
+    }
+
+    console.log('🎓 Checking tutorial status in lobby for user:', authState.user.id);
+
+    try {
+      const result = await authManager.hasCompletedTutorial(authState.user.id);
+
+      console.log('🎓 Tutorial status result:', result);
+
+      if (!result.completed && !result.error) {
+        console.log('🎓 Showing tutorial modal for first-time user');
+        setShowTutorialModal(true);
+      }
+    } catch (error) {
+      console.error('🎓 Failed to check tutorial status:', error);
+    } finally {
+      setIsCheckingTutorial(false);
+    }
+  };
+
+  const handleTutorialComplete = () => {
+    console.log('🎓 Tutorial completed via modal');
+    setShowTutorialModal(false);
+  };
 
   const handleGameJoined = (gameId: string) => {
     if (onGameJoined) {
@@ -143,6 +181,12 @@ export function LobbyScreen({
           )}
         </View>
       </ThemedView>
+
+      {/* Tutorial Modal */}
+      <TutorialModal
+        visible={showTutorialModal}
+        onComplete={handleTutorialComplete}
+      />
     </SafeAreaView>
   );
 }
