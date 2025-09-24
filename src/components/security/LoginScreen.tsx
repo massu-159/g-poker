@@ -182,13 +182,15 @@ export function LoginScreen() {
             </View>
 
             {/* Forgot Password Link */}
-            <Link href="/auth/forgot-password" asChild>
-              <TouchableOpacity style={styles.forgotPasswordContainer} disabled={isLoading}>
-                <ThemedText type="link" style={styles.forgotPasswordText}>
-                  Forgot your password?
-                </ThemedText>
-              </TouchableOpacity>
-            </Link>
+            <View style={styles.forgotPasswordContainer}>
+              <Link href="/auth/forgot-password" asChild>
+                <TouchableOpacity style={styles.forgotPasswordTouchable} disabled={isLoading}>
+                  <ThemedText type="link" style={styles.forgotPasswordText}>
+                    Forgot your password?
+                  </ThemedText>
+                </TouchableOpacity>
+              </Link>
+            </View>
 
             {/* Sign In Button */}
             <TouchableOpacity
@@ -217,7 +219,7 @@ export function LoginScreen() {
                 Don't have an account?{' '}
               </ThemedText>
               <Link href="/auth/register" asChild>
-                <TouchableOpacity disabled={isLoading}>
+                <TouchableOpacity style={styles.signUpLinkTouchable} disabled={isLoading}>
                   <ThemedText type="link" style={styles.signUpLink}>
                     Sign up here
                   </ThemedText>
@@ -306,6 +308,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginBottom: 24,
   },
+  forgotPasswordTouchable: {
+    alignSelf: 'flex-end',
+  },
   forgotPasswordText: {
     fontSize: 14,
   },
@@ -324,6 +329,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  signUpLinkTouchable: {
+    alignSelf: 'flex-start',
   },
   signUpText: {
     fontSize: 14,

@@ -3,7 +3,7 @@
  * Handles all Cockroach Poker game operations with enterprise security
  */
 
-import { supabase } from './supabase';
+import { supabase, authManager, type CreatureType as SupabaseCreatureType } from './supabase';
 import { securityService, type SecurityValidationResult } from './securityService';
 import {
   createCockroachPokerDeck,
@@ -800,6 +800,15 @@ export class GameService {
       }
 
       if (response === 'pass_back') {
+        // Check pass limit (max 3 passes to prevent infinite loops)
+        const MAX_PASSES = 3;
+        if (round.pass_count >= MAX_PASSES) {
+          return {
+            success: false,
+            error: `Maximum pass limit (${MAX_PASSES}) reached. You must guess truth or lie.`
+          };
+        }
+
         // Pass the card back to the claiming player
         const { error: updateRoundError } = await supabase
           .from('game_rounds')
@@ -1078,6 +1087,185 @@ export class GameService {
     } catch (error) {
       console.error('Process claim resolution error:', error);
       return { success: false, error: 'Failed to process claim resolution' };
+    }
+  }
+
+  /**
+   * Check if player has lost using database function
+   */
+  async checkGameEndCondition(playerId: string): Promise<GameOperationResult<{ hasLost: boolean; lostBy?: CreatureType; penaltyCount?: number }>> {
+    try {
+      console.log('🔍 Checking game end condition for player:', playerId);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return { success: false, error: 'Authentication required' };
+      }
+
+      // Use database function for loss check
+      const result = await authManager.checkPlayerLoss(playerId);
+
+      if (result.error) {
+        return { success: false, error: result.error };
+      }
+
+      return {
+        success: true,
+        data: {
+          hasLost: result.hasLost,
+          lostBy: result.lostBy,
+          penaltyCount: result.penaltyCount
+        }
+      };
+    } catch (error) {
+      console.error('Game end condition check error:', error);
+      return { success: false, error: 'Failed to check game end condition' };
+    }
+  }
+
+  /**
+   * Apply penalty to player using database function
+   */
+  async applyPenaltyCard(playerId: string, creature: CreatureType): Promise<GameOperationResult<{ newCount?: number; hasLost?: boolean }>> {
+    try {
+      console.log('🔍 Applying penalty card for player:', playerId, 'creature:', creature);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return { success: false, error: 'Authentication required' };
+      }
+
+      // Use database function for penalty card addition
+      const result = await authManager.addPenaltyCard(playerId, creature);
+
+      if (!result.success || result.error) {
+        return { success: false, error: result.error || 'Failed to apply penalty card' };
+      }
+
+      return {
+        success: true,
+        data: {
+          newCount: result.newCount,
+          hasLost: result.hasLost
+        }
+      };
+    } catch (error) {
+      console.error('Apply penalty card error:', error);
+      return { success: false, error: 'Failed to apply penalty card' };
+    }
+  }
+
+  /**
+   * Get round history for a game
+   */
+  async getRoundHistory(gameId: string): Promise<GameOperationResult<any[]>> {
+    try {
+      const { data: rounds, error } = await supabase
+        .from('game_rounds')
+        .select(`
+          *,
+          claiming_player:game_participants!claiming_player_id(
+            position,
+            player:public_profiles(display_name)
+          ),
+          target_player:game_participants!target_player_id(
+            position,
+            player:public_profiles(display_name)
+          ),
+          final_guesser:game_participants!final_guesser_id(
+            position,
+            player:public_profiles(display_name)
+          )
+        `)
+        .eq('game_id', gameId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, data: rounds || [] };
+    } catch (error) {
+      console.error('Get round history error:', error);
+      return { success: false, error: 'Failed to get round history' };
+    }
+  }
+
+  /**
+   * Get current active round for a game
+   */
+  async getCurrentRound(gameId: string): Promise<GameOperationResult<any>> {
+    try {
+      const { data: round, error } = await supabase
+        .from('game_rounds')
+        .select(`
+          *,
+          claiming_player:game_participants!claiming_player_id(
+            position,
+            player:public_profiles(display_name)
+          ),
+          target_player:game_participants!target_player_id(
+            position,
+            player:public_profiles(display_name)
+          )
+        `)
+        .eq('game_id', gameId)
+        .eq('is_completed', false)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, data: round || null };
+    } catch (error) {
+      console.error('Get current round error:', error);
+      return { success: false, error: 'Failed to get current round' };
+    }
+  }
+
+  /**
+   * Enhanced penalty management with database function integration
+   */
+  async addPenaltyWithLossCheck(playerId: string, creature: CreatureType): Promise<GameOperationResult<{ hasLost: boolean; newCount?: number; lostBy?: CreatureType }>> {
+    try {
+      // First apply the penalty using database function
+      const penaltyResult = await this.applyPenaltyCard(playerId, creature);
+      if (!penaltyResult.success) {
+        return penaltyResult;
+      }
+
+      // If the database function indicates loss, return that information
+      if (penaltyResult.data?.hasLost) {
+        return {
+          success: true,
+          data: {
+            hasLost: true,
+            lostBy: creature,
+            newCount: penaltyResult.data.newCount
+          }
+        };
+      }
+
+      // Otherwise check current status
+      const lossCheckResult = await this.checkGameEndCondition(playerId);
+      if (!lossCheckResult.success) {
+        return lossCheckResult;
+      }
+
+      return {
+        success: true,
+        data: {
+          hasLost: lossCheckResult.data?.hasLost || false,
+          lostBy: lossCheckResult.data?.lostBy,
+          newCount: penaltyResult.data?.newCount || lossCheckResult.data?.penaltyCount
+        }
+      };
+    } catch (error) {
+      console.error('Add penalty with loss check error:', error);
+      return { success: false, error: 'Failed to add penalty with loss check' };
     }
   }
 }

@@ -361,37 +361,45 @@ export function RegisterScreen() {
             </View>
 
             {/* Terms of Service */}
-            <TouchableOpacity
-              style={styles.termsContainer}
-              onPress={() => setAcceptedTerms(!acceptedTerms)}
-              disabled={isLoading}
-            >
-              <View style={[styles.checkbox, { borderColor: iconColor }]}>
-                {acceptedTerms && (
-                  <View style={[styles.checkboxFill, { backgroundColor: tintColor }]} />
-                )}
-              </View>
+            <View style={styles.termsContainer}>
+              <TouchableOpacity
+                style={styles.checkboxTouchable}
+                onPress={() => setAcceptedTerms(!acceptedTerms)}
+                disabled={isLoading}
+              >
+                <View style={[styles.checkbox, { borderColor: iconColor }]}>
+                  {acceptedTerms && (
+                    <View style={[styles.checkboxFill, { backgroundColor: tintColor }]} />
+                  )}
+                </View>
+              </TouchableOpacity>
               <View style={styles.termsText}>
                 <ThemedText style={styles.termsTextContent}>
                   I agree to the{' '}
-                  <Link href="/legal/terms" asChild>
-                    <TouchableOpacity>
-                      <ThemedText type="link" style={styles.termsLink}>
-                        Terms of Service
-                      </ThemedText>
-                    </TouchableOpacity>
-                  </Link>
+                  <ThemedText
+                    type="link"
+                    style={styles.termsLink}
+                    onPress={() => {
+                      // Navigate to terms - implement as needed
+                      console.log('Navigate to Terms of Service');
+                    }}
+                  >
+                    Terms of Service
+                  </ThemedText>
                   {' '}and{' '}
-                  <Link href="/legal/privacy" asChild>
-                    <TouchableOpacity>
-                      <ThemedText type="link" style={styles.termsLink}>
-                        Privacy Policy
-                      </ThemedText>
-                    </TouchableOpacity>
-                  </Link>
+                  <ThemedText
+                    type="link"
+                    style={styles.termsLink}
+                    onPress={() => {
+                      // Navigate to privacy - implement as needed
+                      console.log('Navigate to Privacy Policy');
+                    }}
+                  >
+                    Privacy Policy
+                  </ThemedText>
                 </ThemedText>
               </View>
-            </TouchableOpacity>
+            </View>
 
             {/* Sign Up Button */}
             <TouchableOpacity
@@ -420,7 +428,7 @@ export function RegisterScreen() {
                 Already have an account?{' '}
               </ThemedText>
               <Link href="/auth/login" asChild>
-                <TouchableOpacity disabled={isLoading}>
+                <TouchableOpacity style={styles.signInLinkTouchable} disabled={isLoading}>
                   <ThemedText type="link" style={styles.signInLink}>
                     Sign in here
                   </ThemedText>
@@ -539,13 +547,16 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 24,
   },
+  checkboxTouchable: {
+    padding: 4, // Increase touch area for checkbox
+    marginRight: 8,
+    marginTop: -2,
+  },
   checkbox: {
     width: 20,
     height: 20,
     borderWidth: 2,
     borderRadius: 4,
-    marginRight: 12,
-    marginTop: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -556,13 +567,16 @@ const styles = StyleSheet.create({
   },
   termsText: {
     flex: 1,
+    paddingLeft: 4,
   },
   termsTextContent: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 22,
+    flexWrap: 'wrap',
   },
   termsLink: {
     fontSize: 14,
+    textDecorationLine: 'underline',
   },
   signUpButton: {
     borderRadius: 8,
@@ -579,6 +593,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  signInLinkTouchable: {
+    alignSelf: 'flex-start',
   },
   signInText: {
     fontSize: 14,

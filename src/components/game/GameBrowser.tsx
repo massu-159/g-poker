@@ -60,8 +60,8 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
       if (result.success && result.data) {
         const gameListItems: GameListItem[] = result.data.map(game => ({
           ...game,
-          canJoin: game.status === 'waiting' && game.current_players < game.max_players,
-          isFull: game.current_players >= game.max_players,
+          canJoin: game.status === 'waiting' && game.current_players < 2 && game.max_players === 2,
+          isFull: game.current_players >= 2,
         }));
 
         setGames(gameListItems);
@@ -150,8 +150,8 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
   };
 
   const getGameTypeDisplay = (game: Game) => {
-    // For Cockroach Poker games, display game type and player count
-    return `Cockroach Poker (2 Players)`;
+    // For Cockroach Poker games, display game type with creature icons
+    return `🪳🐭🦇🐸 Cockroach Poker (ごきぶりポーカー)`;
   };
 
   const filteredGames = games.filter(game => {
@@ -160,7 +160,19 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
       const gameTypeText = getGameTypeDisplay(game).toLowerCase();
       const statusText = getStatusText(game.status as GameStatus).toLowerCase();
 
-      return gameTypeText.includes(searchLower) || statusText.includes(searchLower);
+      // Include Japanese and English terms for Cockroach Poker
+      const searchableTerms = [
+        gameTypeText,
+        statusText,
+        'cockroach poker',
+        'ごきぶりポーカー',
+        'ごきぶり',
+        'cockroach',
+        '2プレイヤー',
+        '2 player'
+      ].join(' ').toLowerCase();
+
+      return searchableTerms.includes(searchLower);
     }
     return true;
   });
@@ -193,9 +205,14 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
           </View>
 
           <View style={styles.playersContainer}>
-            <ThemedText style={styles.playersText}>
-              {item.current_players}/2
-            </ThemedText>
+            <View style={[styles.playerCountBadge, {
+              backgroundColor: item.isFull ? '#e74c3c' : '#27ae60',
+              borderColor: item.isFull ? '#e74c3c' : '#27ae60'
+            }]}>
+              <ThemedText style={styles.playerCountText}>
+                {item.current_players}/2
+              </ThemedText>
+            </View>
             {item.isFull && (
               <ThemedText style={[styles.fullText, { color: '#e74c3c' }]}>
                 FULL
@@ -210,7 +227,7 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
           </ThemedText>
 
           <ThemedText style={styles.gameDescriptionText}>
-            Bluff your way to victory in this card game of deception!
+            2プレイヤー対戦 • 同じクリーチャー3枚でアウト！ • ブラフゲーム
           </ThemedText>
         </View>
 
@@ -241,9 +258,9 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <ThemedText style={styles.emptyTitle}>No Games Available</ThemedText>
+      <ThemedText style={styles.emptyTitle}>🪳 No Cockroach Poker Games</ThemedText>
       <ThemedText style={styles.emptySubtitle}>
-        Be the first to create a new Cockroach Poker game!
+        2プレイヤー対戦のごきぶりポーカーゲームを作成してみましょう！
       </ThemedText>
       {onCreateGame && (
         <TouchableOpacity
@@ -268,7 +285,7 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
         ]}
         value={searchText}
         onChangeText={setSearchText}
-        placeholder="Search games..."
+        placeholder="Search Cockroach Poker games..."
         placeholderTextColor={iconColor}
       />
 
@@ -432,6 +449,19 @@ const styles = StyleSheet.create({
   playersText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  playerCountBadge: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 40,
+    alignItems: 'center',
+  },
+  playerCountText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   fullText: {
     fontSize: 12,

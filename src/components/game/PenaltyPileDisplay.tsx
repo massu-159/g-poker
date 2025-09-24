@@ -1,6 +1,6 @@
 /**
  * Penalty Pile Display Component
- * Shows penalty cards grouped by creature type
+ * Shows penalty cards grouped by creature type for Cockroach Poker
  */
 
 import React from 'react';
@@ -10,33 +10,79 @@ import {
 } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import type { GameParticipant } from '@/types/database';
 import type { Card, CreatureType } from '@/types/cards';
-import {
-  getCreatureTypeSymbol,
-  getCreatureTypeName,
-  getCreatureTypeColor,
-  CreatureType as CreatureEnum,
-} from '@/types/cards';
 
 interface PenaltyPileDisplayProps {
-  participant: GameParticipant;
+  penaltyPile?: {
+    cockroach: Card[];
+    mouse: Card[];
+    bat: Card[];
+    frog: Card[];
+  } | null;
   isOpponent?: boolean;
+  style?: any;
 }
 
+const getCreatureTypeSymbol = (creatureType: CreatureType): string => {
+  switch (creatureType) {
+    case 'cockroach': return '🪳';
+    case 'mouse': return '🐭';
+    case 'bat': return '🦇';
+    case 'frog': return '🐸';
+    default: return '❓';
+  }
+};
+
+const getCreatureTypeName = (creatureType: CreatureType): string => {
+  switch (creatureType) {
+    case 'cockroach': return 'Cockroach';
+    case 'mouse': return 'Mouse';
+    case 'bat': return 'Bat';
+    case 'frog': return 'Frog';
+    default: return 'Unknown';
+  }
+};
+
+const getCreatureTypeColor = (creatureType: CreatureType): string => {
+  switch (creatureType) {
+    case 'cockroach': return '#8B4513'; // Brown
+    case 'mouse': return '#708090'; // Gray
+    case 'bat': return '#2F4F4F'; // Dark Gray
+    case 'frog': return '#228B22'; // Green
+    default: return '#666666';
+  }
+};
+
 export function PenaltyPileDisplay({
-  participant,
+  penaltyPile,
   isOpponent = false,
+  style,
 }: PenaltyPileDisplayProps) {
   const textColor = useThemeColor({}, 'text');
   const iconColor = useThemeColor({}, 'icon');
 
-  // Extract penalty cards by type
+  // Return empty state if no penalty pile data
+  if (!penaltyPile) {
+    return (
+      <View style={[styles.container, style]}>
+        <ThemedText style={styles.title}>
+          {isOpponent ? 'Opponent\'s' : 'Your'} Penalty Pile
+        </ThemedText>
+        <View style={styles.emptyState}>
+          <ThemedText style={[styles.emptyText, { color: iconColor }]}>
+            Loading penalty pile...
+          </ThemedText>
+        </View>
+      </View>
+    );
+  }
+
+  // Extract penalty cards by type from the penalty pile structure
   const penaltyCards = {
-    [CreatureEnum.COCKROACH]: (participant.penalty_cockroach as Card[]) || [],
-    [CreatureEnum.MOUSE]: (participant.penalty_mouse as Card[]) || [],
-    [CreatureEnum.BAT]: (participant.penalty_bat as Card[]) || [],
-    [CreatureEnum.FROG]: (participant.penalty_frog as Card[]) || [],
+    cockroach: penaltyPile.cockroach || [],
+    mouse: penaltyPile.mouse || [],
+    bat: penaltyPile.bat || [],
+    frog: penaltyPile.frog || [],
   };
 
   // Check for near-loss condition (2 of same type)
@@ -48,20 +94,18 @@ export function PenaltyPileDisplay({
   const lostType = Object.entries(penaltyCards)
     .find(([_, cards]) => cards.length >= 3)?.[0] as CreatureType;
 
-  const creatureTypes: CreatureType[] = [
-    CreatureEnum.COCKROACH,
-    CreatureEnum.MOUSE,
-    CreatureEnum.BAT,
-    CreatureEnum.FROG,
-  ];
+  // Check if player has lost
+  const hasLost = !!lostType;
+
+  const creatureTypes: CreatureType[] = ['cockroach', 'mouse', 'bat', 'frog'];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
       <ThemedText style={styles.title}>
         {isOpponent ? 'Opponent\'s' : 'Your'} Penalty Pile
       </ThemedText>
 
-      {participant.has_lost && lostType && (
+      {hasLost && lostType && (
         <View style={[styles.lossIndicator, { backgroundColor: '#e74c3c20' }]}>
           <ThemedText style={[styles.lossText, { color: '#e74c3c' }]}>
             💀 Lost! 3 {getCreatureTypeName(lostType)} cards
@@ -155,7 +199,7 @@ export function PenaltyPileDisplay({
         })}
       </View>
 
-      {nearLossTypes.length > 0 && !participant.has_lost && (
+      {nearLossTypes.length > 0 && !hasLost && (
         <View style={[styles.warningBox, { backgroundColor: '#f39c1220', borderColor: '#f39c12' }]}>
           <ThemedText style={[styles.warningTitle, { color: '#f39c12' }]}>
             ⚠️ Warning!

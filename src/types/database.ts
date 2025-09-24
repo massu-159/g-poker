@@ -32,9 +32,9 @@ export interface Database {
           is_active?: boolean;
         };
       };
-      profiles: {
+      public_profiles: {
         Row: {
-          id: string;
+          profile_id: string;
           display_name: string;
           avatar_url: string | null;
           verification_status: string;
@@ -45,7 +45,7 @@ export interface Database {
           updated_at: string;
         };
         Insert: {
-          id: string;
+          profile_id: string;
           display_name: string;
           avatar_url?: string | null;
           verification_status?: string;
@@ -56,7 +56,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: {
-          id?: string;
+          profile_id?: string;
           display_name?: string;
           avatar_url?: string | null;
           verification_status?: string;
@@ -285,6 +285,10 @@ export interface Database {
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
 export type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
+
+export type PublicProfile = Database['public']['Tables']['public_profiles']['Row'];
+export type PublicProfileInsert = Database['public']['Tables']['public_profiles']['Insert'];
+export type PublicProfileUpdate = Database['public']['Tables']['public_profiles']['Update'];
 
 export type Game = Database['public']['Tables']['games']['Row'];
 export type GameInsert = Database['public']['Tables']['games']['Insert'];

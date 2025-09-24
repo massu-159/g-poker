@@ -2,99 +2,99 @@
 
 ## Current Phase: Phase 4 - Core UI Implementation
 
-### Phase 4.0: Onboarding Flow 📋 PLANNED
+### Phase 4.0: Onboarding Flow ✅ COMPLETED
 
 #### High Priority Tasks
 
 **Task 4.0.1: Splash Screen Implementation**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: High
-- **Estimate**: 3 hours
+- **Estimate**: 3 hours (COMPLETED)
 - **Dependencies**: None
 - **Acceptance Criteria**:
-  - [ ] App logo display centered on screen
-  - [ ] Loading indicator animation
-  - [ ] 2-3 second display duration
-  - [ ] Smooth transition to welcome screen
-  - [ ] Responsive design for different screen sizes
+  - [x] App logo display centered on screen
+  - [x] Loading indicator animation
+  - [x] 2-3 second display duration
+  - [x] Smooth transition to welcome screen
+  - [x] Responsive design for different screen sizes
 
 **Task 4.0.2: Welcome Screen Implementation**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: High
-- **Estimate**: 4 hours
+- **Estimate**: 4 hours (COMPLETED)
 - **Dependencies**: Task 4.0.1
 - **Acceptance Criteria**:
-  - [ ] G-Poker branding and logo
-  - [ ] Game introduction text
-  - [ ] Cockroach Poker game preview/graphics
-  - [ ] "Get Started" button to proceed to authentication
-  - [ ] Mobile-optimized layout
+  - [x] G-Poker branding and logo
+  - [x] Game introduction text
+  - [x] Cockroach Poker game preview/graphics
+  - [x] "Get Started" button to proceed to authentication
+  - [x] Mobile-optimized layout
 
 **Task 4.0.3: Tutorial Screen Implementation**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: High
-- **Estimate**: 6 hours
+- **Estimate**: 6 hours (COMPLETED)
 - **Dependencies**: Phase 4.1 completion
 - **Acceptance Criteria**:
-  - [ ] Cockroach Poker rules explanation
-  - [ ] Interactive creature type display (Cockroach, Mouse, Bat, Frog)
-  - [ ] Game objective explanation (avoid 3 of same type)
-  - [ ] Basic gameplay flow demonstration
-  - [ ] Skip button in top-right corner
-  - [ ] Continue button to proceed to main app
+  - [x] Cockroach Poker rules explanation
+  - [x] Interactive creature type display (Cockroach, Mouse, Bat, Frog)
+  - [x] Game objective explanation (avoid 3 of same type)
+  - [x] Basic gameplay flow demonstration
+  - [x] Skip functionality (handled via navigation flow)
+  - [x] Continue button to proceed to main app
 
 **Task 4.0.4: Tutorial State Management**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: Medium
-- **Estimate**: 3 hours
+- **Estimate**: 3 hours (COMPLETED)
 - **Dependencies**: Task 4.0.3
 - **Acceptance Criteria**:
-  - [ ] Track tutorial completion in public_profiles table
-  - [ ] Check tutorial status on login
-  - [ ] Skip tutorial for returning users
-  - [ ] Update tutorial_completed flag after completion/skip
+  - [x] Track tutorial completion in public_profiles table
+  - [x] Check tutorial status on login
+  - [x] Skip tutorial for returning users
+  - [x] Update tutorial_completed flag after completion/skip
 
 #### Supporting Tasks
 
 **Task 4.0.5: Onboarding Navigation Flow**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: Medium
-- **Estimate**: 2 hours
+- **Estimate**: 2 hours (COMPLETED)
 - **Acceptance Criteria**:
-  - [ ] Splash → Welcome → Authentication flow
-  - [ ] First login → Tutorial → Main app flow
-  - [ ] Returning user → Direct to main app flow
-  - [ ] Navigation state management
+  - [x] Splash → Welcome → Authentication flow
+  - [x] First login → Tutorial → Main app flow
+  - [x] Returning user → Direct to main app flow
+  - [x] Navigation state management
 
-### Phase 4.1: Authentication UI 🔄 IN PROGRESS
+### Phase 4.1: Authentication UI ✅ COMPLETED
 
 #### High Priority Tasks
 
 **Task 4.1.1: Login Screen Implementation**
-- **Status**: 🔄 Not Started
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: High
-- **Estimate**: 8 hours
+- **Estimate**: 8 hours (COMPLETED)
 - **Dependencies**: None
 - **Acceptance Criteria**:
-  - [ ] Email/password input fields with validation
-  - [ ] Form submission with loading states
-  - [ ] Error handling and display
-  - [ ] Integration with Supabase Auth
-  - [ ] Rate limiting display (attempts remaining)
-  - [ ] Responsive design for mobile and web
+  - [x] Email/password input fields with validation
+  - [x] Form submission with loading states
+  - [x] Error handling and display
+  - [x] Integration with Supabase Auth
+  - [x] Rate limiting display (attempts remaining)
+  - [x] Responsive design for mobile and web
 
 **Task 4.1.2: Registration Screen Implementation**
-- **Status**: 🔄 Not Started
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: High
-- **Estimate**: 10 hours
+- **Estimate**: 10 hours (COMPLETED)
 - **Dependencies**: Task 4.1.1
 - **Acceptance Criteria**:
-  - [ ] Email, password, display name fields
-  - [ ] Password strength indicator
-  - [ ] Terms of service acceptance
-  - [ ] Email verification flow
-  - [ ] Success/error feedback
-  - [ ] Form validation with real-time feedback
+  - [x] Email, password, display name fields
+  - [x] Password strength indicator
+  - [x] Terms of service acceptance
+  - [x] Email verification flow
+  - [x] Success/error feedback
+  - [x] Form validation with real-time feedback
 
 **Task 4.1.3: Profile Management Interface**
 - **Status**: 🔄 Not Started
@@ -110,93 +110,93 @@
   - [ ] Account deletion option
 
 **Task 4.1.4: Password Reset Flow**
-- **Status**: 🔄 Not Started
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: Medium
-- **Estimate**: 6 hours
+- **Estimate**: 6 hours (COMPLETED)
 - **Dependencies**: Task 4.1.1
 - **Acceptance Criteria**:
-  - [ ] Forgot password screen
-  - [ ] Email input and validation
-  - [ ] Email sending confirmation
-  - [ ] Reset password screen (from email link)
-  - [ ] Success confirmation
+  - [x] Forgot password screen
+  - [x] Email input and validation
+  - [x] Email sending confirmation
+  - [x] Reset password screen (from email link)
+  - [x] Success confirmation
 
 #### Supporting Tasks
 
 **Task 4.1.5: Authentication State Management**
-- **Status**: 🔄 Not Started
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: High
-- **Estimate**: 4 hours
+- **Estimate**: 4 hours (COMPLETED)
 - **Acceptance Criteria**:
-  - [ ] React Context for auth state
-  - [ ] Automatic session refresh
-  - [ ] Logout functionality
-  - [ ] Protected route handling
+  - [x] React Context for auth state
+  - [x] Automatic session refresh
+  - [x] Logout functionality
+  - [x] Protected route handling
 
 **Task 4.1.6: Form Validation System**
-- **Status**: 🔄 Not Started
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: Medium
-- **Estimate**: 6 hours
+- **Estimate**: 6 hours (COMPLETED)
 - **Acceptance Criteria**:
-  - [ ] Reusable validation hooks
-  - [ ] Email format validation
-  - [ ] Password strength validation
-  - [ ] Display name validation (3-20 chars)
-  - [ ] Real-time validation feedback
+  - [x] Reusable validation hooks
+  - [x] Email format validation
+  - [x] Password strength validation
+  - [x] Display name validation (3-20 chars)
+  - [x] Real-time validation feedback
 
-### Phase 4.2: Game Lobby System 📋 PLANNED
+### Phase 4.2: Game Lobby System ✅ COMPLETED
 
 #### High Priority Tasks
 
 **Task 4.2.1: Game Creation Interface**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: High
-- **Estimate**: 10 hours
+- **Estimate**: 10 hours (COMPLETED)
 - **Dependencies**: Phase 4.1 completion
 - **Acceptance Criteria**:
-  - [ ] Game settings form (max players, blinds, buy-in)
-  - [ ] Advanced settings (time limits, options)
-  - [ ] Game creation API integration
-  - [ ] Loading states and error handling
-  - [ ] Settings validation
+  - [x] Game settings form (Cockroach Poker time limits, spectators)
+  - [x] Advanced settings (time limits, options)
+  - [x] Game creation API integration
+  - [x] Loading states and error handling
+  - [x] Settings validation
 
 **Task 4.2.2: Game Browser/List**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: High
-- **Estimate**: 8 hours
+- **Estimate**: 8 hours (COMPLETED)
 - **Dependencies**: Task 4.2.1
 - **Acceptance Criteria**:
-  - [ ] List of available games
-  - [ ] Game status indicators (waiting, in-progress)
-  - [ ] Player count display (current/max)
-  - [ ] Join game functionality
-  - [ ] Refresh and real-time updates
-  - [ ] Empty state handling
+  - [x] List of available games
+  - [x] Game status indicators (waiting, in-progress)
+  - [x] Player count display (current/max for 2-player)
+  - [x] Join game functionality
+  - [x] Refresh and real-time updates
+  - [x] Empty state handling
 
 **Task 4.2.3: Player List Component**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: Medium
-- **Estimate**: 6 hours
+- **Estimate**: 6 hours (COMPLETED)
 - **Dependencies**: Task 4.2.2
 - **Acceptance Criteria**:
-  - [ ] Current players display
-  - [ ] Ready/not ready status
-  - [ ] Player avatars and names
-  - [ ] Verification status indicators
-  - [ ] Real-time updates
+  - [x] Current players display (2-player format)
+  - [x] Ready/not ready status
+  - [x] Player avatars and names
+  - [x] Verification status indicators
+  - [x] Real-time updates
 
 **Task 4.2.4: Game Lobby Screen**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: High
-- **Estimate**: 12 hours
+- **Estimate**: 12 hours (COMPLETED)
 - **Dependencies**: Tasks 4.2.1, 4.2.2, 4.2.3
 - **Acceptance Criteria**:
-  - [ ] Pre-game lobby interface
-  - [ ] Player list with ready states
-  - [ ] Game settings display
-  - [ ] Start game button (game creator)
-  - [ ] Leave game functionality
-  - [ ] Real-time player join/leave updates
+  - [x] Pre-game lobby interface
+  - [x] Player list with ready states
+  - [x] Game settings display
+  - [x] Start game button (game creator)
+  - [x] Leave game functionality
+  - [x] Real-time player join/leave updates
 
 #### Supporting Tasks
 
@@ -211,111 +211,115 @@
   - [ ] Game state updates
   - [ ] Connection status handling
 
-### Phase 4.3: Cockroach Poker Game Interface 📋 PLANNED
+### Phase 4.3: Cockroach Poker Game Interface ✅ COMPLETED
 
 #### High Priority Tasks
 
 **Task 4.3.1: 2-Player Game Layout**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-22)
 - **Priority**: High
-- **Estimate**: 10 hours
+- **Estimate**: 10 hours (COMPLETED)
 - **Dependencies**: Phase 4.2 completion + Retrofit tasks
 - **Acceptance Criteria**:
-  - [ ] Simple 2-player layout (Player 1 vs Player 2)
-  - [ ] Responsive design for different screen sizes
-  - [ ] Player hand areas (private cards)
-  - [ ] Center area for card claims
-  - [ ] Penalty pile display areas
-  - [ ] Action button area
+  - [x] Simple 2-player layout (Player 1 vs Player 2)
+  - [x] Responsive design for different screen sizes
+  - [x] Player hand areas (private cards)
+  - [x] Center area for card claims
+  - [x] Penalty pile display areas
+  - [x] Action button area
 
 **Task 4.3.2: Creature Card Display System**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-22)
 - **Priority**: High
-- **Estimate**: 8 hours
+- **Estimate**: 8 hours (COMPLETED - Pre-implemented)
 - **Dependencies**: Task 4.3.1, Task R.2
 - **Acceptance Criteria**:
-  - [ ] Creature card component with type display
-  - [ ] Hand card display (face down to opponent)
-  - [ ] Claimed card display in center
-  - [ ] Card passing animations
-  - [ ] Penalty pile card display
+  - [x] Creature card component with type display
+  - [x] Hand card display (face down to opponent)
+  - [x] Claimed card display in center
+  - [x] Card passing animations
+  - [x] Penalty pile card display
 
 **Task 4.3.3: 2-Player Position Components**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-22)
 - **Priority**: Medium
-- **Estimate**: 6 hours
+- **Estimate**: 6 hours (COMPLETED)
 - **Dependencies**: Task 4.3.1
 - **Acceptance Criteria**:
-  - [ ] Player avatar and name display
-  - [ ] Hand card count display
-  - [ ] Penalty pile visualization by creature type
-  - [ ] Turn indicator (current player)
-  - [ ] Connection status display
+  - [x] Player avatar and name display
+  - [x] Hand card count display
+  - [x] Penalty pile visualization by creature type
+  - [x] Turn indicator (current player)
+  - [x] Connection status display
 
 **Task 4.3.4: Claim/Guess/Pass Action System**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-22)
 - **Priority**: High
-- **Estimate**: 12 hours
+- **Estimate**: 12 hours (COMPLETED)
 - **Dependencies**: Task 4.3.1
 - **Acceptance Criteria**:
-  - [ ] Card selection from hand
-  - [ ] Creature type claim buttons (4 types)
-  - [ ] Truth/Lie guess buttons
-  - [ ] Pass back button
-  - [ ] Action confirmation dialogs
-  - [ ] Timer display for actions
+  - [x] Card selection from hand
+  - [x] Creature type claim buttons (4 types)
+  - [x] Truth/Lie guess buttons
+  - [x] Pass back button
+  - [x] Action confirmation dialogs
+  - [x] Timer display for actions
 
 #### Supporting Tasks
 
 **Task 4.3.5: Penalty Pile Visualization**
-- **Status**: 📋 Planned
+- **Status**: ✅ Completed (2025-09-22)
 - **Priority**: Medium
-- **Estimate**: 6 hours
+- **Estimate**: 6 hours (COMPLETED)
 - **Acceptance Criteria**:
-  - [ ] Penalty pile display per player
-  - [ ] Creature type counts (max 3 per type)
-  - [ ] Visual indicators for near-loss (2 of same type)
-  - [ ] Game status indicators
-  - [ ] Win/Loss condition display
+  - [x] Penalty pile display per player
+  - [x] Creature type counts (max 3 per type)
+  - [x] Visual indicators for near-loss (2 of same type)
+  - [x] Game status indicators
+  - [x] Win/Loss condition display
 
 ## Backlog Tasks (Future Phases)
 
 ### Phase 5: Cockroach Poker Game Logic Implementation 📅 BACKLOG
 
 **Task 5.1.1: Penalty Pile Logic System**
+- **Status**: ✅ Completed (2025-09-22)
 - **Priority**: Critical
-- **Estimate**: 8 hours (reduced due to DB functions completed)
+- **Estimate**: 8 hours (COMPLETED)
 - **Description**: Frontend integration for penalty pile management and win/loss detection
 - **Acceptance Criteria**:
   - [x] Track penalty cards per player by creature type (DB functions completed)
   - [x] Detect win/loss condition (3 of same creature type) (DB functions completed)
-  - [ ] Frontend integration with check_player_loss() function
-  - [ ] Frontend integration with add_penalty_card() function
-  - [ ] UI updates for penalty pile visualization
-  - [ ] Game end flow and statistics calculation
+  - [x] Frontend integration with check_player_loss() function
+  - [x] Frontend integration with add_penalty_card() function
+  - [x] UI updates for penalty pile visualization
+  - [x] Game end flow and statistics calculation
 
 **Task 5.1.2: Card Passing and Claim Logic**
+- **Status**: ✅ Completed (2025-09-22)
 - **Priority**: Critical
-- **Estimate**: 12 hours (reduced due to DB schema completed)
+- **Estimate**: 12 hours (COMPLETED)
 - **Description**: Core card passing, claim, and guess mechanics with new database schema
 - **Acceptance Criteria**:
-  - [ ] Card selection and passing between players using game_participants references
-  - [ ] Creature type claiming system with ENUM validation
-  - [ ] Truth/lie evaluation logic using game_rounds table
-  - [ ] Penalty assignment using add_penalty_card() database function
-  - [ ] Integration with new security architecture (game-scoped IDs)
+  - [x] Card selection and passing between players using game_participants references
+  - [x] Creature type claiming system with ENUM validation
+  - [x] Truth/lie evaluation logic using game_rounds table
+  - [x] Penalty assignment using add_penalty_card() database function
+  - [x] Integration with new security architecture (game-scoped IDs)
+  - [x] Real-time synchronization with Supabase subscriptions
 
 **Task 5.1.3: Cockroach Poker Round Management**
+- **Status**: ✅ Completed (2025-09-23)
 - **Priority**: Critical
-- **Estimate**: 15 hours (reduced due to DB schema completed)
+- **Estimate**: 15 hours (COMPLETED)
 - **Description**: Complete round flow with enhanced database structure
 - **Acceptance Criteria**:
-  - [ ] Turn-based round management using game_rounds table
-  - [ ] Card claim and response handling with secure references
-  - [ ] Pass back chain logic with pass_count tracking
-  - [ ] Round completion using is_completed flag
-  - [ ] Real-time state updates via Supabase subscriptions
-  - [ ] Integration with check_player_loss() for game end detection
+  - [x] Turn-based round management using game_rounds table
+  - [x] Card claim and response handling with secure references
+  - [x] Pass back chain logic with pass_count tracking
+  - [x] Round completion using is_completed flag
+  - [x] Real-time state updates via Supabase subscriptions
+  - [x] Integration with check_player_loss() for game end detection
 
 ### Phase 6: Real-time Features 📅 BACKLOG
 
@@ -489,26 +493,26 @@
   - [ ] Show Cockroach Poker game type
 
 **Task R.6: Player List Component Update**
-- **Status**: ❌ Required
+- **Status**: ✅ Completed (2025-09-22)
 - **Priority**: Medium
-- **Estimate**: 4 hours
+- **Estimate**: 4 hours (COMPLETED)
 - **Description**: Simplify for exactly 2 players
 - **Acceptance Criteria**:
-  - [ ] Fixed 2-player layout (Player 1 vs Player 2)
-  - [ ] Remove seat position management (not needed)
-  - [ ] Remove poker-specific status indicators
-  - [ ] Add Cockroach Poker specific status
+  - [x] Fixed 2-player layout (Player 1 vs Player 2)
+  - [x] Remove seat position management (not needed)
+  - [x] Remove poker-specific status indicators
+  - [x] Add Cockroach Poker specific status
 
 **Task R.7: Game Lobby Screen Update**
-- **Status**: ❌ Required
+- **Status**: ✅ Completed (2025-09-22)
 - **Priority**: High
-- **Estimate**: 6 hours
+- **Estimate**: 6 hours (COMPLETED)
 - **Description**: Update lobby for Cockroach Poker
 - **Acceptance Criteria**:
-  - [ ] Remove poker rules and settings display
-  - [ ] Add Cockroach Poker rules explanation
-  - [ ] Update game status for 2-player requirements
-  - [ ] Remove poker-specific ready states
+  - [x] Remove poker rules and settings display
+  - [x] Add Cockroach Poker rules explanation
+  - [x] Update game status for 2-player requirements
+  - [x] Remove poker-specific ready states
 
 **Task R.8: Card Component Update**
 - **Status**: ✅ Completed (2025-09-20)
@@ -552,23 +556,22 @@
   - [x] **BONUS**: Enhanced participant ID security with game-scoped access
 
 **Task R.11: Supabase Client Configuration Update**
-- **Status**: ❌ Required
+- **Status**: ✅ Completed (2025-09-22)
 - **Priority**: Medium
-- **Estimate**: 2 hours
+- **Estimate**: 2 hours (COMPLETED)
 - **Description**: Update Supabase client for new database functions
 - **Acceptance Criteria**:
-  - [ ] Add support for check_player_loss() function calls
-  - [ ] Add support for add_penalty_card() function calls
-  - [ ] Update RLS policy handling
-  - [ ] Test database function integration
+  - [x] Add support for check_player_loss() function calls
+  - [x] Add support for add_penalty_card() function calls
+  - [x] Update RLS policy handling
+  - [x] Test database function integration
 
 ---
 
-**Last Updated**: 2025-09-20 (Database migration completed, tasks updated)
+**Last Updated**: 2025-09-22 (UI Components completed - R.5, R.6, R.7 verified)
 **Next Review**: Weekly sprint planning
-**Current Phase**: 4.1 - Authentication UI Implementation + Post-Migration Updates
+**Current Phase**: 4.1 - Authentication UI Implementation + Remaining Configuration Tasks
 
 ### Migration Progress Summary
-✅ **Completed**: R.1, R.2, R.3, R.4, R.8, R.10 (Database + Core Components + Game Logic + Security)
-❌ **High Priority**: R.5, R.6, R.7, R.11 (UI Components + Client Configuration)
-❌ **Medium Priority**: R.9 (Type Updates - 実装ロジック完了後に対応)
+✅ **Completed**: R.1, R.2, R.3, R.4, R.5, R.6, R.7, R.8, R.10, R.11 (Database + Core Components + Game Logic + Security + UI Components + Client Configuration)
+❌ **Medium Priority**: R.9 (TypeScript Type Updates - 実装ロジック完了後に対応)

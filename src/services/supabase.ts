@@ -350,6 +350,28 @@ export class AuthManager {
     }
   }
 
+  public async refreshSession(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+
+      if (error) {
+        console.error('Session refresh failed:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (data.session) {
+        this.currentSession = data.session;
+        // Update last seen timestamp
+        await this.updateLastSeen();
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Session refresh failed:', error);
+      return { success: false, error: error.message || 'Session refresh failed' };
+    }
+  }
+
   // ENUM validation methods for data integrity
   public validateCreatureType(value: string): value is CreatureType {
     return ['cockroach', 'mouse', 'bat', 'frog'].includes(value);
@@ -463,6 +485,92 @@ export class AuthManager {
   }
 
   /**
+   * Check if player has lost the game (3 of same creature type)
+   */
+  async checkPlayerLoss(playerUuid: string): Promise<{ hasLost: boolean; lostBy?: CreatureType; penaltyCount?: number; error?: string }> {
+    try {
+      console.log('🔍 Checking player loss condition for:', playerUuid);
+
+      if (!playerUuid || typeof playerUuid !== 'string') {
+        console.error('❌ Invalid playerUuid provided:', playerUuid);
+        return { hasLost: false, error: 'Invalid player UUID' };
+      }
+
+      const { data, error } = await supabase.rpc('check_player_loss', {
+        player_uuid: playerUuid
+      });
+
+      console.log('📊 Loss check response:', { data, error });
+
+      if (error) {
+        console.error('❌ Database error checking player loss:', error);
+        return { hasLost: false, error: error.message };
+      }
+
+      // Handle different response formats from the database function
+      if (typeof data === 'boolean') {
+        return { hasLost: data };
+      } else if (typeof data === 'object' && data !== null) {
+        return {
+          hasLost: data.has_lost || false,
+          lostBy: data.lost_by,
+          penaltyCount: data.penalty_count
+        };
+      }
+
+      return { hasLost: false };
+    } catch (error: any) {
+      console.error('💥 Exception in player loss check:', error);
+      return { hasLost: false, error: error.message || 'Failed to check player loss condition' };
+    }
+  }
+
+  /**
+   * Add penalty card to player's penalty pile
+   */
+  async addPenaltyCard(playerUuid: string, creatureType: CreatureType): Promise<{ success: boolean; newCount?: number; hasLost?: boolean; error?: string }> {
+    try {
+      console.log('🔍 Adding penalty card for player:', playerUuid, 'creature:', creatureType);
+
+      if (!playerUuid || typeof playerUuid !== 'string') {
+        console.error('❌ Invalid playerUuid provided:', playerUuid);
+        return { success: false, error: 'Invalid player UUID' };
+      }
+
+      if (!this.validateCreatureType(creatureType)) {
+        console.error('❌ Invalid creature type provided:', creatureType);
+        return { success: false, error: 'Invalid creature type' };
+      }
+
+      const { data, error } = await supabase.rpc('add_penalty_card', {
+        player_uuid: playerUuid,
+        creature_type: creatureType
+      });
+
+      console.log('📊 Add penalty card response:', { data, error });
+
+      if (error) {
+        console.error('❌ Database error adding penalty card:', error);
+        return { success: false, error: error.message };
+      }
+
+      // Handle different response formats from the database function
+      if (typeof data === 'object' && data !== null) {
+        return {
+          success: true,
+          newCount: data.new_count,
+          hasLost: data.has_lost || false
+        };
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('💥 Exception in adding penalty card:', error);
+      return { success: false, error: error.message || 'Failed to add penalty card' };
+    }
+  }
+
+  /**
    * Check if user has completed tutorial with enhanced error handling
    */
   async hasCompletedTutorial(userId: string): Promise<{ completed: boolean; error?: string }> {
@@ -478,25 +586,18 @@ export class AuthManager {
         .from('profiles')
         .select('tutorial_completed, tutorial_completed_at, created_at')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       console.log('📊 Database response:', { data, error });
 
       if (error) {
         console.error('❌ Database error checking tutorial status:', error);
-
-        // Handle specific error cases
-        if (error.code === 'PGRST116') {
-          console.log('👤 User profile not found, treating as new user');
-          return { completed: false, error: 'User profile not found' };
-        }
-
         return { completed: false, error: error.message };
       }
 
       if (!data) {
-        console.log('📄 No profile data found for user');
-        return { completed: false, error: 'No profile data' };
+        console.log('📄 No profile data found for user - treating as new user with tutorial not completed');
+        return { completed: false };
       }
 
       const isCompleted = data.tutorial_completed === true;
