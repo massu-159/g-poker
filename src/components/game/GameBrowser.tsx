@@ -60,8 +60,8 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
       if (result.success && result.data) {
         const gameListItems: GameListItem[] = result.data.map(game => ({
           ...game,
-          canJoin: game.status === 'waiting' && game.current_players < 2 && game.max_players === 2,
-          isFull: game.current_players >= 2,
+          canJoin: game.status === 'waiting' && game.current_player_count < 2 && game.max_players === 2,
+          isFull: game.current_player_count >= 2,
         }));
 
         setGames(gameListItems);
@@ -210,7 +210,7 @@ export function GameBrowser({ onGameJoined, onCreateGame }: GameBrowserProps) {
               borderColor: item.isFull ? '#e74c3c' : '#27ae60'
             }]}>
               <ThemedText style={styles.playerCountText}>
-                {item.current_players}/2
+                {item.current_player_count}/2
               </ThemedText>
             </View>
             {item.isFull && (
