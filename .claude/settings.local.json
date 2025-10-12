@@ -61,7 +61,12 @@
       "Bash(open http://localhost:8081)",
       "Bash(open http://localhost:8083)",
       "Bash(open http://localhost:8084)",
-      "Bash(open http://localhost:3000)"
+      "Bash(open http://localhost:3000)",
+      "Bash(.specify/scripts/bash/create-new-feature.sh:*)",
+      "Bash(.specify/scripts/bash/setup-plan.sh:*)",
+      "Bash(/Users/massu159/Desktop/dev/claude-code/g-poker/.specify/scripts/bash/update-agent-context.sh:*)",
+      "Bash(.specify/scripts/bash/update-agent-context.sh:*)",
+      "mcp__supabase__list_edge_functions"
     ],
     "deny": [],
     "ask": []
