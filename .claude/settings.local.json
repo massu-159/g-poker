@@ -66,7 +66,15 @@
       "Bash(.specify/scripts/bash/setup-plan.sh:*)",
       "Bash(/Users/massu159/Desktop/dev/claude-code/g-poker/.specify/scripts/bash/update-agent-context.sh:*)",
       "Bash(.specify/scripts/bash/update-agent-context.sh:*)",
-      "mcp__supabase__list_edge_functions"
+      "mcp__supabase__list_edge_functions",
+      "Bash(npx vitest run:*)",
+      "WebFetch(domain:stackoverflow.com)",
+      "WebFetch(domain:supabase.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(python3:*)",
+      "Bash(find /Users/massu159/Desktop/dev/claude-code/g-poker/backend/src -name \"*.ts\" -exec grep -l \"const supabase = getSupabase()\" {} ;)"
     ],
     "deny": [],
     "ask": []
