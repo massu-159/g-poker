@@ -6,7 +6,6 @@ import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
-import { Server } from 'socket.io'
 import { createServer } from 'http'
 
 // Import API routes
@@ -15,8 +14,8 @@ import roomRoutes from './routes/rooms.js'
 import userRoutes from './routes/users.js'
 import gameRoutes from './routes/games.js'
 
-// Import Socket.io event handlers
-import { setupGameEvents } from './events/gameEvents.js'
+// Import Socket.io server setup
+import { initializeSocketServer } from './socket/SocketServer.js'
 
 const app = new Hono()
 
@@ -50,37 +49,42 @@ app.route('/api/rooms', roomRoutes)
 app.route('/api/users', userRoutes)
 app.route('/api/games', gameRoutes)
 
-const port = parseInt(process.env.PORT || '3001')
+// Only start servers if not in test environment
+if (process.env.NODE_ENV !== 'test' && process.env.VITEST !== 'true') {
+  const port = parseInt(process.env.PORT || '3001')
 
-// Create HTTP server for Socket.io integration
-const server = createServer()
+  // Create HTTP server for Socket.io integration
+  const server = createServer()
 
-// Initialize Socket.io
-const io = new Server(server, {
-  cors: {
-    origin: ['http://localhost:3000', 'http://localhost:8081'],
-    credentials: true,
-  },
-})
+  // Initialize Socket.io with new handler architecture
+  initializeSocketServer(server)
+    .then(() => {
+      console.log('[Server] Socket.io initialized successfully')
+    })
+    .catch(error => {
+      console.error('[Server] Failed to initialize Socket.io:', error)
+      process.exit(1)
+    })
 
-// Setup Socket.io event handlers for real-time gameplay
-setupGameEvents(io)
+  // Start the server
+  console.log(`Starting G-Poker backend server on port ${port}`)
 
-// Start the server
-console.log(`Starting G-Poker backend server on port ${port}`)
+  // Start Hono server
+  serve(
+    {
+      fetch: app.fetch,
+      port: port,
+    },
+    info => {
+      console.log(`Hono server running at http://localhost:${info.port}`)
+    }
+  )
 
-// Start Hono server
-serve(
-  {
-    fetch: app.fetch,
-    port: port,
-  },
-  info => {
-    console.log(`Hono server running at http://localhost:${info.port}`)
-  }
-)
+  // Start Socket.io server on port + 1
+  server.listen(port + 1, () => {
+    console.log(`Socket.io server running at http://localhost:${port + 1}`)
+  })
+}
 
-// Start Socket.io server on port + 1
-server.listen(port + 1, () => {
-  console.log(`Socket.io server running at http://localhost:${port + 1}`)
-})
+// Export app for testing
+export { app }
