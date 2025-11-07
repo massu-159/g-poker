@@ -4,6 +4,7 @@
  */
 
 import { getSupabase } from '../lib/supabase.js'
+import { logAction, ActionType } from './auditService.js'
 
 export interface CardClaimData {
   cardId: string
@@ -51,8 +52,8 @@ export async function processCardClaim(
       return { success: false, error: 'Game not found' }
     }
 
-    if (game.status !== 'active') {
-      return { success: false, error: 'Game is not active' }
+    if (game.status !== 'in_progress') {
+      return { success: false, error: 'Game is not in progress' }
     }
 
     if (game.current_turn_player_id !== userId) {
@@ -141,12 +142,12 @@ export async function processCardClaim(
       .eq('id', gameId)
 
     // Log action
-    await supabase.from('game_actions').insert({
-      game_id: gameId,
-      round_id: newRound.id,
-      player_id: userId,
-      action_type: 'claim',
-      action_data: {
+    await logAction({
+      gameId,
+      roundId: newRound.id,
+      playerId: userId,
+      actionType: ActionType.MAKE_CLAIM,
+      actionData: {
         card: claimedCard,
         claimed_creature: claimedCreature,
         target_player: targetPlayerId,
@@ -199,7 +200,7 @@ export async function processClaimResponse(
     // Verify it's the target player's turn to respond
     const { data: game } = await supabase
       .from('games')
-      .select('current_turn_player_id')
+      .select('current_turn_player_id, round_number')
       .eq('id', gameId)
       .single()
 
@@ -235,11 +236,19 @@ export async function processClaimResponse(
       }
     }
 
+    // Get the responding participant's ID (final_guesser_id must be game_participants.id)
+    const { data: respondingParticipant } = await supabase
+      .from('game_participants')
+      .select('id')
+      .eq('game_id', gameId)
+      .eq('player_id', userId)
+      .single()
+
     // Update round with results
     await supabase
       .from('game_rounds')
       .update({
-        final_guesser_id: userId,
+        final_guesser_id: respondingParticipant?.id || null,
         guess_is_truth: believeClaim,
         actual_is_truth: claimIsTruthful,
         penalty_receiver_id: penaltyReceiverId,
@@ -277,6 +286,20 @@ export async function processClaimResponse(
         })
         .eq('id', penaltyParticipant.id)
 
+      // Log receive_penalty action
+      await logAction({
+        gameId,
+        roundId,
+        playerId: penaltyReceiverId,
+        actionType: ActionType.RECEIVE_PENALTY,
+        actionData: {
+          creature_type: actualCreature,
+          penalty_count: updatedPenalties.length,
+          has_lost: hasLost,
+          losing_creature_type: hasLost ? actualCreature : null,
+        },
+      })
+
       // Check if game is over
       const { data: remainingPlayers } = await supabase
         .from('game_participants')
@@ -296,6 +319,20 @@ export async function processClaimResponse(
             updated_at: new Date().toISOString(),
           })
           .eq('id', gameId)
+
+        // Log game_end action
+        await logAction({
+          gameId,
+          roundId,
+          playerId: winnerId || penaltyReceiverId,
+          actionType: ActionType.GAME_END,
+          actionData: {
+            winner_id: winnerId,
+            loser_id: penaltyReceiverId,
+            total_rounds: game?.round_number || 0,
+            ended_at: new Date().toISOString(),
+          },
+        })
       }
     }
 
@@ -311,12 +348,12 @@ export async function processClaimResponse(
     }
 
     // Log action
-    await supabase.from('game_actions').insert({
-      game_id: gameId,
-      round_id: roundId,
-      player_id: userId,
-      action_type: 'respond',
-      action_data: {
+    await logAction({
+      gameId,
+      roundId,
+      playerId: userId,
+      actionType: believeClaim ? ActionType.GUESS_TRUTH : ActionType.GUESS_LIE,
+      actionData: {
         believed_claim: believeClaim,
         claim_was_truthful: claimIsTruthful,
         penalty_receiver: penaltyReceiverId,
@@ -415,12 +452,12 @@ export async function processCardPass(
       .eq('id', gameId)
 
     // Log action
-    await supabase.from('game_actions').insert({
-      game_id: gameId,
-      round_id: roundId,
-      player_id: userId,
-      action_type: 'pass',
-      action_data: {
+    await logAction({
+      gameId,
+      roundId,
+      playerId: userId,
+      actionType: ActionType.PASS_CARD,
+      actionData: {
         target_player: targetPlayerId,
         new_claim: newClaim,
         pass_count: newPassCount,

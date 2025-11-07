@@ -49,8 +49,8 @@ app.route('/api/rooms', roomRoutes)
 app.route('/api/users', userRoutes)
 app.route('/api/games', gameRoutes)
 
-// Only start servers if not in test environment
-if (process.env.NODE_ENV !== 'test' && process.env.VITEST !== 'true') {
+// Only start servers if not in test environment (but allow E2E tests)
+if ((process.env.NODE_ENV !== 'test' && process.env.VITEST !== 'true') || process.env.E2E_TEST === 'true') {
   const port = parseInt(process.env.PORT || '3001')
 
   // Create HTTP server for Socket.io integration

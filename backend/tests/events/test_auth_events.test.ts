@@ -8,137 +8,31 @@
  * Expected to FAIL until T043 (WebSocket authentication handler implementation) is complete
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  afterEach,
-} from 'vitest'
-import { Server as SocketIOServer } from 'socket.io'
-import { Server as HttpServer, createServer } from 'http'
-import { io as ClientIO, Socket as ClientSocket } from 'socket.io-client'
+import { describe, it } from 'vitest'
 
-describe('WebSocket Authentication Events (TDD Validation)', () => {
-  let httpServer: HttpServer
-  let ioServer: SocketIOServer
-  let serverPort: number
-  let clientSocket: ClientSocket
+/**
+ * ✅ IMPLEMENTATION COMPLETE
+ *
+ * WebSocket authentication handlers have been implemented in:
+ * - src/socket/AuthHandler.ts
+ * - src/socket/SocketServer.ts
+ *
+ * Integration tests validating the implementation:
+ * - tests/events/test_socket_integration.test.ts
+ *
+ * This file documents comprehensive test requirements for future improvements.
+ */
 
-  beforeAll(async () => {
-    // Create HTTP server for Socket.io
-    httpServer = createServer()
+describe('WebSocket Authentication Events (Contract Documentation)', () => {
+  /**
+   * ✅ IMPLEMENTATION STATUS:
+   * - Authentication handlers: COMPLETE (src/socket/AuthHandler.ts)
+   * - Integration tests: COMPLETE (test_socket_integration.test.ts)
+   *
+   * The following todo tests document comprehensive test coverage for future improvements.
+   */
 
-    // Create Socket.io server (NOT YET IMPLEMENTED - will cause test failures)
-    ioServer = new SocketIOServer(httpServer, {
-      cors: {
-        origin: '*',
-        methods: ['GET', 'POST'],
-      },
-    })
-
-    // Start server on random port
-    await new Promise<void>(resolve => {
-      httpServer.listen(0, () => {
-        serverPort = (httpServer.address() as any)?.port || 3002
-        resolve()
-      })
-    })
-  })
-
-  afterAll(async () => {
-    if (ioServer) {
-      ioServer.close()
-    }
-    if (httpServer) {
-      httpServer.close()
-    }
-  })
-
-  beforeEach(async () => {
-    // Create client connection
-    clientSocket = ClientIO(`http://localhost:${serverPort}`, {
-      autoConnect: false,
-      timeout: 1000,
-    })
-  })
-
-  afterEach(() => {
-    if (clientSocket) {
-      clientSocket.disconnect()
-    }
-  })
-
-  describe('TDD State Validation', () => {
-    it('should allow WebSocket connection (baseline test)', async () => {
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Connection timeout'))
-        }, 2000)
-
-        clientSocket.on('connect', () => {
-          clearTimeout(timeout)
-          expect(clientSocket.connected).toBe(true)
-          resolve()
-        })
-
-        clientSocket.on('connect_error', error => {
-          clearTimeout(timeout)
-          reject(error)
-        })
-
-        clientSocket.connect()
-      })
-    })
-
-    it('should not have authentication handler implemented yet', async () => {
-      await new Promise<void>(resolve => {
-        let receivedResponse = false
-
-        // Setup timeout to verify no authentication handler exists
-        const timeout = setTimeout(() => {
-          if (!receivedResponse) {
-            // EXPECTED: No authentication handler implemented yet
-            expect(receivedResponse).toBe(false)
-            resolve()
-          }
-        }, 1000)
-
-        // Listen for authentication responses (should not receive any)
-        clientSocket.on('authenticated', () => {
-          receivedResponse = true
-          clearTimeout(timeout)
-          // This should NOT happen in TDD pre-implementation state
-          expect(true).toBe(false) // Force failure if handler exists
-        })
-
-        clientSocket.on('authentication_failed', () => {
-          receivedResponse = true
-          clearTimeout(timeout)
-          // This should NOT happen in TDD pre-implementation state
-          expect(true).toBe(false) // Force failure if handler exists
-        })
-
-        clientSocket.on('connect', () => {
-          // Send authentication event
-          clientSocket.emit('authenticate', {
-            access_token: 'valid.access.token',
-            device_info: {
-              device_id: 'test-device-123',
-              platform: 'ios',
-              app_version: '1.0.0',
-            },
-          })
-        })
-
-        clientSocket.connect()
-      })
-    })
-  })
-
-  describe('Future Contract Requirements (Will be implemented in T043)', () => {
+  describe('Future Contract Requirements', () => {
     /**
      * When T043 is implemented, these are the contract requirements
      * that must be fulfilled. These tests are documented here but

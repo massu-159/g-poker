@@ -88,13 +88,27 @@ users.get('/me', authMiddleware, async c => {
       return c.json({ error: 'User profile not found' }, 404)
     }
 
-    // Get current active rooms
-    const { data: activeRooms } = await supabase.rpc(
-      'get_player_current_games',
-      {
-        p_player_id: user.userId,
-      }
-    )
+    // Get current active rooms (direct SQL query)
+    const { data: activeRooms } = await supabase
+      .from('game_participants')
+      .select(
+        `
+        game_id,
+        status,
+        position,
+        games!inner (
+          id,
+          status,
+          max_players,
+          current_player_count,
+          round_number,
+          created_at
+        )
+      `
+      )
+      .eq('player_id', user.userId)
+      .in('status', ['joined', 'playing'])
+      .in('games.status', ['waiting', 'in_progress'])
 
     // Get recent achievements
     const { data: recentAchievements } = await supabase
@@ -208,14 +222,6 @@ users.put(
         return c.json({ error: 'Failed to update profile' }, 500)
       }
 
-      // Log profile update event
-      await supabase.rpc('log_system_event', {
-        p_event_type: 'profile_updated',
-        p_event_category: 'user_action',
-        p_user_id: user.userId,
-        p_event_data: JSON.stringify(updateData),
-      })
-
       return c.json({
         message: 'Profile updated successfully',
         profile: updatedProfile,
@@ -266,14 +272,6 @@ users.put(
         return c.json({ error: 'Failed to update preferences' }, 500)
       }
 
-      // Log preferences update event
-      await supabase.rpc('log_system_event', {
-        p_event_type: 'preferences_updated',
-        p_event_category: 'user_action',
-        p_user_id: user.userId,
-        p_event_data: JSON.stringify(Object.keys(updateData)),
-      })
-
       return c.json({
         message: 'Preferences updated successfully',
         preferences: updatedPreferences,
@@ -295,20 +293,31 @@ users.get('/me/statistics', authMiddleware, async c => {
     const user = c.get('user')
     const days = parseInt(c.req.query('days') || '30')
 
-    // Get activity summary using database function
-    const { data: activitySummary } = await supabase.rpc(
-      'get_user_activity_summary',
-      {
-        p_user_id: user.userId,
-        days_back: days,
-      }
-    )
+    // Get game participation statistics (direct SQL query)
+    const cutoffDate = new Date(
+      Date.now() - days * 24 * 60 * 60 * 1000
+    ).toISOString()
 
-    // Get game participation statistics
     const { data: gameStats } = await supabase
       .from('game_participants')
-      .select('game_id, has_lost, losing_creature_type')
+      .select(
+        'game_id, has_lost, losing_creature_type, joined_at, games!inner(status)'
+      )
       .eq('player_id', user.userId)
+      .gte('joined_at', cutoffDate)
+
+    // Calculate activity summary from gameStats
+    const totalGamesPlayed = gameStats?.length || 0
+    const gamesWon =
+      gameStats?.filter(
+        g => !g.has_lost && (g.games as any)?.status === 'completed'
+      ).length || 0
+    const activitySummary = {
+      total_games_played: totalGamesPlayed,
+      total_games_won: gamesWon,
+      win_rate: totalGamesPlayed > 0 ? (gamesWon / totalGamesPlayed) * 100 : 0,
+      period_days: days,
+    }
 
     // Get achievement progress
     const { data: achievements } = await supabase
@@ -338,7 +347,7 @@ users.get('/me/statistics', authMiddleware, async c => {
 
     return c.json({
       statistics: {
-        activitySummary: activitySummary?.[0] || {},
+        activitySummary: activitySummary || {},
         gameStats: gameStats || [],
         achievements: achievements || [],
         leaderboardPositions: leaderboardPositions || [],
@@ -433,21 +442,6 @@ users.post('/me/tutorial-complete', authMiddleware, async c => {
       return c.json({ error: 'Failed to update tutorial status' }, 500)
     }
 
-    // Check for tutorial completion achievement
-    await supabase.rpc('check_achievement_progress', {
-      p_player_id: user.userId,
-      p_achievement_type: 'tutorial',
-      p_new_value: 1,
-    })
-
-    // Log tutorial completion event
-    await supabase.rpc('log_system_event', {
-      p_event_type: 'tutorial_completed',
-      p_event_category: 'user_action',
-      p_user_id: user.userId,
-      p_event_data: JSON.stringify({}),
-    })
-
     return c.json({ message: 'Tutorial marked as completed' })
   } catch (error) {
     console.error('Tutorial completion error:', error)
@@ -464,16 +458,6 @@ users.get('/:id/profile', authMiddleware, async c => {
     const supabase = getSupabase()
     const userId = c.req.param('id')
     const currentUser = c.get('user')
-
-    // Check if user is blocked
-    const { data: isBlocked } = await supabase.rpc('is_user_blocked', {
-      blocker_id: userId,
-      blocked_id: currentUser.userId,
-    })
-
-    if (isBlocked) {
-      return c.json({ error: 'User profile not accessible' }, 403)
-    }
 
     // Get public profile data
     const { data: profile, error } = await supabase

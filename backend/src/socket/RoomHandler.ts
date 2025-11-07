@@ -72,7 +72,7 @@ async function handleJoinRoom(
 
     // Check if room exists
     const { data: room, error: roomError } = await supabase
-      .from('game_rooms')
+      .from('games')
       .select('*')
       .eq('id', data.room_id)
       .single()
@@ -89,9 +89,9 @@ async function handleJoinRoom(
 
     // Check if user is a participant
     const { data: participation, error: participationError } = await supabase
-      .from('room_participants')
+      .from('game_participants')
       .select('*')
-      .eq('room_id', data.room_id)
+      .eq('game_id', data.room_id)
       .eq('player_id', userId)
       .single()
 
@@ -100,17 +100,6 @@ async function handleJoinRoom(
         room_id: data.room_id,
         error_code: 'ACCESS_DENIED',
         message: 'You are not a participant in this room',
-      }
-      socket.emit('room_join_failed', error)
-      return
-    }
-
-    // Check if room is full (for spectators)
-    if (participation.role === 'spectator' && !room.allow_spectators) {
-      const error: RoomJoinFailedEvent = {
-        room_id: data.room_id,
-        error_code: 'ACCESS_DENIED',
-        message: 'Spectators are not allowed in this room',
       }
       socket.emit('room_join_failed', error)
       return
@@ -130,14 +119,14 @@ async function handleJoinRoom(
     }
     socketRooms.get(socket.id)!.add(data.room_id)
 
-    // Update participant connection status
+    // Update participant status to playing (existing schema uses 'status' field)
     await supabase
-      .from('room_participants')
+      .from('game_participants')
       .update({
-        connection_status: 'connected',
-        last_activity_at: new Date().toISOString(),
+        status: 'playing',
+        updated_at: new Date().toISOString(),
       })
-      .eq('room_id', data.room_id)
+      .eq('game_id', data.room_id)
       .eq('player_id', userId)
 
     // Get complete room state
@@ -170,8 +159,8 @@ async function handleJoinRoom(
       participant: {
         id: userId,
         display_name: socket.displayName || 'Anonymous',
-        role: participation.role,
-        seat_position: participation.seat_position,
+        role: 'player', // Schema only supports players (no spectators)
+        seat_position: participation.position || 0,
         joined_at: participation.joined_at,
       },
     }
@@ -218,11 +207,11 @@ async function handleLeaveRoom(
     // Update database
     const supabase = getSupabase()
     await supabase
-      .from('room_participants')
+      .from('game_participants')
       .update({
-        connection_status: 'disconnected',
+        status: 'disconnected',
       })
-      .eq('room_id', roomId)
+      .eq('game_id', roomId)
       .eq('player_id', userId)
 
     // Send confirmation
@@ -285,11 +274,11 @@ function handleDisconnectFromRooms(io: Server, socket: AuthenticatedSocket) {
   const supabase = getSupabase()
   rooms.forEach(roomId => {
     supabase
-      .from('room_participants')
+      .from('game_participants')
       .update({
-        connection_status: 'disconnected',
+        status: 'disconnected',
       })
-      .eq('room_id', roomId)
+      .eq('game_id', roomId)
       .eq('player_id', userId)
       .then(() => {
         // Success - fire and forget
@@ -304,7 +293,7 @@ async function getRoomState(roomId: string): Promise<RoomState | null> {
   try {
     const supabase = getSupabase()
     const { data: room, error } = await supabase
-      .from('game_rooms')
+      .from('games')
       .select('*')
       .eq('id', roomId)
       .single()
@@ -317,12 +306,12 @@ async function getRoomState(roomId: string): Promise<RoomState | null> {
       id: room.id,
       status: room.status,
       settings: {
-        max_players: room.max_players,
+        max_players: 2, // Fixed to 2 players (schema design - no max_players column)
         time_limit_seconds: room.time_limit_seconds,
-        allow_spectators: room.allow_spectators,
+        allow_spectators: false, // Not supported in current schema
       },
       created_at: room.created_at,
-      started_at: room.started_at,
+      started_at: null, // games table doesn't have started_at (could use updated_at)
     }
   } catch (error) {
     console.error('[Room] Get room state error:', error)
@@ -337,19 +326,19 @@ async function getRoomParticipants(roomId: string): Promise<Participant[]> {
   try {
     const supabase = getSupabase()
     const { data: participants, error } = await supabase
-      .from('room_participants')
+      .from('game_participants')
       .select(
         `
         *,
-        profiles (
+        profiles!inner (
           public_profiles (
             display_name
           )
         )
       `
       )
-      .eq('room_id', roomId)
-      .order('seat_position')
+      .eq('game_id', roomId)
+      .order('position')
 
     if (error || !participants) {
       return []
@@ -359,10 +348,10 @@ async function getRoomParticipants(roomId: string): Promise<Participant[]> {
       id: p.player_id,
       display_name:
         (p.profiles as any)?.public_profiles?.[0]?.display_name || 'Anonymous',
-      role: p.role,
-      seat_position: p.seat_position,
-      ready_status: p.ready_status || false,
-      connection_status: p.connection_status || 'disconnected',
+      role: 'player', // Schema only supports players
+      seat_position: p.position || 0,
+      ready_status: p.status === 'joined', // Map status to ready_status
+      connection_status: p.status === 'playing' ? 'connected' : 'disconnected',
       joined_at: p.joined_at,
     }))
   } catch (error) {
@@ -381,9 +370,9 @@ async function getYourParticipation(
   try {
     const supabase = getSupabase()
     const { data: participation, error } = await supabase
-      .from('room_participants')
+      .from('game_participants')
       .select('*')
-      .eq('room_id', roomId)
+      .eq('game_id', roomId)
       .eq('player_id', userId)
       .single()
 
@@ -392,9 +381,9 @@ async function getYourParticipation(
     }
 
     return {
-      role: participation.role,
-      seat_position: participation.seat_position,
-      ready_status: participation.ready_status || false,
+      role: 'player', // Schema only supports players
+      seat_position: participation.position || 0,
+      ready_status: participation.status === 'joined',
     }
   } catch (error) {
     console.error('[Room] Get your participation error:', error)

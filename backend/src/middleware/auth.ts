@@ -1,13 +1,22 @@
 /**
  * Authentication middleware for JWT token validation
+ * Updated: 2025-10-30 - Added RLS debugging
  */
 
 import { createMiddleware } from 'hono/factory'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import { getSupabase } from '../lib/supabase.js'
 
-// JWT secret from environment
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+export function getJWTSecret(): string {
+  if (!process.env.JWT_SECRET) {
+    throw new Error(
+      'FATAL: JWT_SECRET environment variable is not set. ' +
+        'Cannot start server without secure token signing.'
+    )
+  }
+  return process.env.JWT_SECRET
+}
 
 export interface AuthContext {
   userId: string
@@ -21,6 +30,14 @@ declare module 'hono' {
   interface ContextVariableMap {
     user: AuthContext
   }
+}
+
+/**
+ * Hash a token using SHA-256 for secure storage
+ * Prevents token theft if database is compromised
+ */
+export function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex')
 }
 
 /**
@@ -45,63 +62,49 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     }
 
     // Verify JWT token
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthContext
+    const decoded = jwt.verify(token, getJWTSecret()) as AuthContext
 
-    // Check if user exists and is active (handle missing columns gracefully)
+    // Verify user exists and is active
     const supabase = getSupabase()
-    try {
-      const { data: user, error } = await supabase
-        .from('profiles')
-        .select('id, email, is_active')
-        .eq('id', decoded.userId)
-        .single()
+    const { data: user, error: userError } = await supabase
+      .from('profiles')
+      .select('id, email, is_active')
+      .eq('id', decoded.userId)
+      .single()
 
-      if (error || !user) {
-        // Try with minimal columns if full query fails
-        const { data: basicUser, error: basicError } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', decoded.userId)
-          .single()
-
-        if (basicError || !basicUser) {
-          return c.json({ error: 'User not found' }, 401)
-        }
-
-        // User exists but missing columns, assume active for now
-        console.warn(
-          'User profile missing columns, assuming active:',
-          decoded.userId
-        )
-      } else {
-        // Full user data available, check active status
-        if (user.is_active === false) {
-          return c.json({ error: 'Account inactive' }, 401)
-        }
-      }
-    } catch (userError) {
-      console.warn('User validation failed, skipping:', userError)
-      // Continue without user validation for now
+    if (userError || !user) {
+      console.error('[Auth Middleware] User not found:', decoded.userId)
+      return c.json({ error: 'User not found' }, 401)
     }
 
-    // Check if token is blacklisted (check user_sessions table if it exists)
-    try {
-      const { data: session } = await supabase
-        .from('user_sessions')
-        .select('is_active')
-        .eq('user_id', decoded.userId)
-        .eq('session_token', token)
-        .single()
-
-      if (!session || !session.is_active) {
-        return c.json({ error: 'Invalid or expired session' }, 401)
-      }
-    } catch (sessionError) {
-      // user_sessions table might not exist yet, skip session validation for now
+    if (user.is_active === false) {
       console.warn(
-        'Session validation skipped - user_sessions table not available:',
-        sessionError
+        '[Auth Middleware] Inactive user attempted access:',
+        decoded.userId
       )
+      return c.json({ error: 'Account inactive' }, 401)
+    }
+
+    // Verify session is active
+    const hashedToken = hashToken(token)
+    const { data: session, error: sessionError } = await supabase
+      .from('user_sessions')
+      .select('is_active')
+      .eq('user_id', decoded.userId)
+      .eq('session_token', hashedToken)
+      .single()
+
+    if (sessionError || !session) {
+      console.error(
+        '[Auth Middleware] Session not found:',
+        sessionError?.message
+      )
+      return c.json({ error: 'Invalid or expired session' }, 401)
+    }
+
+    if (!session.is_active) {
+      console.warn('[Auth Middleware] Inactive session used:', decoded.userId)
+      return c.json({ error: 'Session has been terminated' }, 401)
     }
 
     // Store user info in context
@@ -133,7 +136,7 @@ export const optionalAuthMiddleware = createMiddleware(async (c, next) => {
       const token = authorization.split(' ')[1]
 
       if (token) {
-        const decoded = jwt.verify(token, JWT_SECRET) as AuthContext
+        const decoded = jwt.verify(token, getJWTSecret()) as AuthContext
         c.set('user', decoded)
       }
     }
@@ -156,7 +159,7 @@ export function generateJWTToken(userId: string, email: string): string {
       email,
       iat: Math.floor(Date.now() / 1000),
     },
-    JWT_SECRET,
+    getJWTSecret(),
     {
       expiresIn: '7d',
       issuer: 'g-poker-backend',
@@ -175,7 +178,7 @@ export function generateRefreshToken(userId: string): string {
       type: 'refresh',
       iat: Math.floor(Date.now() / 1000),
     },
-    JWT_SECRET,
+    getJWTSecret(),
     {
       expiresIn: '30d',
       issuer: 'g-poker-backend',

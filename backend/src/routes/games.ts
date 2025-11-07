@@ -7,6 +7,11 @@ import { authMiddleware } from '../middleware/auth.js'
 import { z } from 'zod'
 import { validator } from 'hono/validator'
 import { getSupabase } from '../lib/supabase.js'
+import {
+  processCardClaim,
+  processClaimResponse,
+  processCardPass,
+} from '../services/gameService.js'
 
 const games = new Hono()
 
@@ -46,139 +51,30 @@ games.post(
     return parsed.data
   }),
   async c => {
-    try {
-      const supabase = getSupabase()
-      const gameId = c.req.param('id')
-      const user = c.get('user')
-      const { cardId, claimedCreature, targetPlayerId } = c.req.valid('json')
+    const gameId = c.req.param('id')
+    const user = c.get('user')
+    const { cardId, claimedCreature, targetPlayerId } = c.req.valid('json')
 
-      // Verify it's the player's turn
-      const { data: game, error: gameError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', gameId)
-        .single()
+    const result = await processCardClaim(gameId, user.userId, {
+      cardId,
+      claimedCreature,
+      targetPlayerId,
+    })
 
-      if (gameError || !game) {
-        return c.json({ error: 'Game not found' }, 404)
-      }
-
-      if (game.status !== 'active') {
-        return c.json({ error: 'Game is not active' }, 400)
-      }
-
-      if (game.current_turn_player_id !== user.userId) {
-        return c.json({ error: 'Not your turn' }, 400)
-      }
-
-      // Verify player has the card
-      const { data: participant, error: participantError } = await supabase
-        .from('game_participants')
-        .select('*')
-        .eq('game_id', gameId)
-        .eq('player_id', user.userId)
-        .single()
-
-      if (participantError || !participant) {
-        return c.json({ error: 'Player not found in game' }, 404)
-      }
-
-      const playerCards = participant.hand_cards || []
-      const cardIndex = playerCards.findIndex((card: any) => card.id === cardId)
-
-      if (cardIndex === -1) {
-        return c.json({ error: 'Card not found in your hand' }, 400)
-      }
-
-      const claimedCard = playerCards[cardIndex]
-
-      // Verify target player exists and is active
-      const { data: targetParticipant, error: targetError } = await supabase
-        .from('game_participants')
-        .select('*')
-        .eq('game_id', gameId)
-        .eq('player_id', targetPlayerId)
-        .single()
-
-      if (targetError || !targetParticipant) {
-        return c.json({ error: 'Target player not found' }, 404)
-      }
-
-      if (targetParticipant.has_lost) {
-        return c.json(
-          { error: 'Cannot target a player who has already lost' },
-          400
-        )
-      }
-
-      // Create new round
-      const { data: newRound, error: roundError } = await supabase
-        .from('game_rounds')
-        .insert({
-          game_id: gameId,
-          round_number: game.round_number + 1,
-          current_card: claimedCard,
-          claiming_player_id: user.userId,
-          claimed_creature_type: claimedCreature,
-          target_player_id: targetPlayerId,
-          pass_count: 0,
-          is_completed: false,
-        })
-        .select()
-        .single()
-
-      if (roundError || !newRound) {
-        console.error('Round creation error:', roundError)
-        return c.json({ error: 'Failed to create round' }, 500)
-      }
-
-      // Remove card from player's hand
-      const updatedCards = playerCards.filter((card: any) => card.id !== cardId)
-      await supabase
-        .from('game_participants')
-        .update({
-          hand_cards: updatedCards,
-          cards_remaining: updatedCards.length,
-        })
-        .eq('id', participant.id)
-
-      // Update game state
-      await supabase
-        .from('games')
-        .update({
-          round_number: newRound.round_number,
-          current_turn_player_id: targetPlayerId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', gameId)
-
-      // Log action
-      await supabase.from('game_actions').insert({
-        game_id: gameId,
-        round_id: newRound.id,
-        player_id: user.userId,
-        action_type: 'claim',
-        action_data: {
-          card: claimedCard,
-          claimed_creature: claimedCreature,
-          target_player: targetPlayerId,
-        },
-      })
-
-      return c.json({
-        message: 'Claim made successfully',
-        round: {
-          id: newRound.id,
-          roundNumber: newRound.round_number,
-          claimedCreature: claimedCreature,
-          targetPlayer: targetPlayerId,
-          awaitingResponse: true,
-        },
-      })
-    } catch (error) {
-      console.error('Make claim error:', error)
-      return c.json({ error: 'Internal server error' }, 500)
+    if (!result.success) {
+      return c.json({ error: result.error }, 400)
     }
+
+    return c.json({
+      message: 'Claim made successfully',
+      round: {
+        id: result.data.roundId,
+        roundNumber: result.data.roundNumber,
+        claimedCreature: result.data.claimedCreature,
+        targetPlayer: result.data.targetPlayer,
+        awaitingResponse: true,
+      },
+    })
   }
 )
 
@@ -200,176 +96,25 @@ games.post(
     return parsed.data
   }),
   async c => {
-    try {
-      const supabase = getSupabase()
-      const gameId = c.req.param('id')
-      const user = c.get('user')
-      const { roundId, believeClaim } = c.req.valid('json')
+    const gameId = c.req.param('id')
+    const user = c.get('user')
+    const { roundId, believeClaim } = c.req.valid('json')
 
-      // Get round details
-      const { data: round, error: roundError } = await supabase
-        .from('game_rounds')
-        .select('*')
-        .eq('id', roundId)
-        .eq('game_id', gameId)
-        .single()
+    const result = await processClaimResponse(gameId, user.userId, {
+      roundId,
+      believeClaim,
+    })
 
-      if (roundError || !round) {
-        return c.json({ error: 'Round not found' }, 404)
-      }
-
-      if (round.is_completed) {
-        return c.json({ error: 'Round already completed' }, 400)
-      }
-
-      // Verify it's the target player's turn to respond
-      const { data: game } = await supabase
-        .from('games')
-        .select('current_turn_player_id')
-        .eq('id', gameId)
-        .single()
-
-      if (game?.current_turn_player_id !== user.userId) {
-        return c.json({ error: 'Not your turn to respond' }, 400)
-      }
-
-      // Determine if the claim was truthful
-      const actualCard = round.current_card
-      const claimedCreature = round.claimed_creature_type
-      const actualCreature = actualCard.creature
-      const claimIsTruthful = actualCreature === claimedCreature
-
-      // Determine who gets the penalty card
-      let penaltyReceiverId
-      if (believeClaim) {
-        // Player believes the claim
-        if (claimIsTruthful) {
-          // Claim was true, responder gets penalty
-          penaltyReceiverId = user.userId
-        } else {
-          // Claim was false, claimer gets penalty
-          penaltyReceiverId = round.claiming_player_id
-        }
-      } else {
-        // Player doubts the claim
-        if (claimIsTruthful) {
-          // Claim was true, doubter gets penalty
-          penaltyReceiverId = user.userId
-        } else {
-          // Claim was false, claimer gets penalty
-          penaltyReceiverId = round.claiming_player_id
-        }
-      }
-
-      // Update round with results
-      await supabase
-        .from('game_rounds')
-        .update({
-          final_guesser_id: user.userId,
-          guess_is_truth: believeClaim,
-          actual_is_truth: claimIsTruthful,
-          penalty_receiver_id: penaltyReceiverId,
-          is_completed: true,
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', roundId)
-
-      // Add penalty card to the appropriate player
-      const { data: penaltyParticipant } = await supabase
-        .from('game_participants')
-        .select('*')
-        .eq('game_id', gameId)
-        .eq('player_id', penaltyReceiverId)
-        .single()
-
-      if (penaltyParticipant) {
-        const creatureKey =
-          `penalty_${actualCreature}` as keyof typeof penaltyParticipant
-        const currentPenalties = penaltyParticipant[creatureKey] || []
-        const updatedPenalties = [...currentPenalties, actualCard]
-
-        // Check if player has lost (3 of same creature for simplified mobile version)
-        const hasLost = updatedPenalties.length >= 3
-
-        await supabase
-          .from('game_participants')
-          .update({
-            [creatureKey]: updatedPenalties,
-            has_lost: hasLost,
-            losing_creature_type: hasLost ? actualCreature : null,
-          })
-          .eq('id', penaltyParticipant.id)
-
-        // Check if game is over
-        const { data: remainingPlayers } = await supabase
-          .from('game_participants')
-          .select('player_id')
-          .eq('game_id', gameId)
-          .eq('has_lost', false)
-
-        if (remainingPlayers && remainingPlayers.length <= 1) {
-          // Game over
-          const winnerId = remainingPlayers[0]?.player_id || null
-          await supabase
-            .from('games')
-            .update({
-              status: 'completed',
-              current_turn_player_id: winnerId,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', gameId)
-
-          return c.json({
-            message: 'Game completed',
-            roundResult: {
-              penaltyReceiver: penaltyReceiverId,
-              actualCard: actualCard,
-              claimWasTruthful: claimIsTruthful,
-              playerGuess: believeClaim,
-              gameOver: true,
-              winner: winnerId,
-            },
-          })
-        }
-      }
-
-      // Continue game - penalty receiver gets next turn
-      await supabase
-        .from('games')
-        .update({
-          current_turn_player_id: penaltyReceiverId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', gameId)
-
-      // Log action
-      await supabase.from('game_actions').insert({
-        game_id: gameId,
-        round_id: roundId,
-        player_id: user.userId,
-        action_type: 'respond',
-        action_data: {
-          believed_claim: believeClaim,
-          claim_was_truthful: claimIsTruthful,
-          penalty_receiver: penaltyReceiverId,
-        },
-      })
-
-      return c.json({
-        message: 'Response recorded',
-        roundResult: {
-          penaltyReceiver: penaltyReceiverId,
-          actualCard: actualCard,
-          claimWasTruthful: claimIsTruthful,
-          playerGuess: believeClaim,
-          nextTurnPlayer: penaltyReceiverId,
-          gameOver: false,
-        },
-      })
-    } catch (error) {
-      console.error('Respond to claim error:', error)
-      return c.json({ error: 'Internal server error' }, 500)
+    if (!result.success) {
+      return c.json({ error: result.error }, 400)
     }
+
+    const { roundResult } = result.data
+
+    return c.json({
+      message: roundResult.gameOver ? 'Game completed' : 'Response recorded',
+      roundResult: roundResult,
+    })
   }
 )
 
@@ -391,93 +136,26 @@ games.post(
     return parsed.data
   }),
   async c => {
-    try {
-      const supabase = getSupabase()
-      const gameId = c.req.param('id')
-      const user = c.get('user')
-      const { roundId, targetPlayerId, newClaim } = c.req.valid('json')
+    const gameId = c.req.param('id')
+    const user = c.get('user')
+    const { roundId, targetPlayerId, newClaim } = c.req.valid('json')
 
-      // Get current round
-      const { data: round, error: roundError } = await supabase
-        .from('game_rounds')
-        .select('*')
-        .eq('id', roundId)
-        .eq('game_id', gameId)
-        .single()
+    const result = await processCardPass(gameId, user.userId, {
+      roundId,
+      targetPlayerId,
+      newClaim,
+    })
 
-      if (roundError || !round) {
-        return c.json({ error: 'Round not found' }, 404)
-      }
-
-      if (round.is_completed) {
-        return c.json({ error: 'Round already completed' }, 400)
-      }
-
-      // Verify it's the player's turn
-      const { data: game } = await supabase
-        .from('games')
-        .select('current_turn_player_id')
-        .eq('id', gameId)
-        .single()
-
-      if (game?.current_turn_player_id !== user.userId) {
-        return c.json({ error: 'Not your turn' }, 400)
-      }
-
-      // Verify target player is valid
-      const { data: targetParticipant, error: targetError } = await supabase
-        .from('game_participants')
-        .select('*')
-        .eq('game_id', gameId)
-        .eq('player_id', targetPlayerId)
-        .single()
-
-      if (targetError || !targetParticipant || targetParticipant.has_lost) {
-        return c.json({ error: 'Invalid target player' }, 400)
-      }
-
-      // Update round with pass
-      await supabase
-        .from('game_rounds')
-        .update({
-          target_player_id: targetPlayerId,
-          claimed_creature_type: newClaim,
-          pass_count: round.pass_count + 1,
-        })
-        .eq('id', roundId)
-
-      // Update game turn
-      await supabase
-        .from('games')
-        .update({
-          current_turn_player_id: targetPlayerId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', gameId)
-
-      // Log action
-      await supabase.from('game_actions').insert({
-        game_id: gameId,
-        round_id: roundId,
-        player_id: user.userId,
-        action_type: 'pass',
-        action_data: {
-          target_player: targetPlayerId,
-          new_claim: newClaim,
-          pass_count: round.pass_count + 1,
-        },
-      })
-
-      return c.json({
-        message: 'Card passed successfully',
-        nextTurnPlayer: targetPlayerId,
-        newClaim: newClaim,
-        passCount: round.pass_count + 1,
-      })
-    } catch (error) {
-      console.error('Pass card error:', error)
-      return c.json({ error: 'Internal server error' }, 500)
+    if (!result.success) {
+      return c.json({ error: result.error }, 400)
     }
+
+    return c.json({
+      message: 'Card passed successfully',
+      nextTurnPlayer: result.data.nextTurnPlayer,
+      newClaim: result.data.newClaim,
+      passCount: result.data.passCount,
+    })
   }
 )
 

@@ -27,7 +27,12 @@ export function getSupabase(): SupabaseClient {
       )
     }
 
-    _supabaseClient = createClient(supabaseUrl, supabaseServiceKey)
+    _supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
   }
 
   return _supabaseClient

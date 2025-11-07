@@ -8,12 +8,34 @@ import {
   authMiddleware,
   generateJWTToken,
   generateRefreshToken,
+  hashToken,
+  getJWTSecret,
 } from '../middleware/auth.js'
+import { rateLimit } from '../middleware/rateLimit.js'
 import { z } from 'zod'
 import { validator } from 'hono/validator'
 import { getSupabase } from '../lib/supabase.js'
 
 const auth = new Hono()
+
+// Rate limit configurations
+const registerRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 3,
+  message: 'Too many registration attempts, please try again later',
+})
+
+const loginRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 5,
+  message: 'Too many login attempts, please try again later',
+})
+
+const refreshRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 10,
+  message: 'Too many token refresh attempts, please try again later',
+})
 
 // Validation schemas
 const registerSchema = z.object({
@@ -48,6 +70,7 @@ const refreshSchema = z.object({
  */
 auth.post(
   '/register',
+  registerRateLimit,
   validator('json', (value, c) => {
     const parsed = registerSchema.safeParse(value)
     if (!parsed.success) {
@@ -86,11 +109,16 @@ auth.post(
       }
 
       // Create user in Supabase Auth (Supabase handles password hashing internally)
+      // Note: Database trigger automatically creates profile and public_profile records
       const { data: authUser, error: authError } =
         await supabase.auth.admin.createUser({
           email,
           password,
           email_confirm: true,
+          user_metadata: {
+            display_name: displayName,
+            username: username,
+          },
         })
 
       if (authError || !authUser.user) {
@@ -98,89 +126,144 @@ auth.post(
         return c.json({ error: 'Failed to create user account' }, 500)
       }
 
-      // Create profile record
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: authUser.user.id,
-        email,
-        is_active: true,
-      })
+      // Phase C: Wait for trigger completion with retry logic
+      // Database trigger (handle_new_user) runs asynchronously after auth.users INSERT
+      // We need to wait for profiles and public_profiles to be created before proceeding
+      const maxRetries = 30 // Increased from 10 to 30 for more reliable trigger completion
+      const retryDelay = 100 // ms (total wait time: 3000ms)
+      let profileCreated = false
+      let publicProfileCreated = false
 
-      if (profileError) {
-        console.error('Profile creation error:', profileError)
-        // Clean up auth user if profile creation fails
-        await supabase.auth.admin.deleteUser(authUser.user.id)
-        return c.json({ error: 'Failed to create user profile' }, 500)
+      console.log(
+        '[Registration] Waiting for trigger to create profiles for user:',
+        authUser.user.id
+      )
+
+      for (let i = 0; i < maxRetries; i++) {
+        // Wait before checking (except first iteration)
+        if (i > 0) {
+          // eslint-disable-next-line no-undef
+          await new Promise(resolve => setTimeout(resolve, retryDelay))
+        }
+
+        // Check if profiles exist
+        const { data: profileCheck, error: profileCheckError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', authUser.user.id)
+          .maybeSingle()
+
+        const { data: publicProfileCheck, error: publicProfileCheckError } =
+          await supabase
+            .from('public_profiles')
+            .select('id')
+            .eq('profile_id', authUser.user.id)
+            .maybeSingle()
+
+        profileCreated = !!profileCheck && !profileCheckError
+        publicProfileCreated = !!publicProfileCheck && !publicProfileCheckError
+
+        if (profileCreated && publicProfileCreated) {
+          console.log(
+            `[Registration] ✅ Trigger completed after ${i * retryDelay}ms`
+          )
+          break
+        }
+
+        if (i === maxRetries - 1) {
+          console.warn(
+            `[Registration] ⚠️ Trigger did not complete after ${maxRetries * retryDelay}ms`
+          )
+
+          // Final check before giving up - sometimes trigger completes just after our last check
+          // eslint-disable-next-line no-undef
+          await new Promise(resolve => setTimeout(resolve, 500))
+
+          const { data: finalProfileCheck } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', authUser.user.id)
+            .maybeSingle()
+
+          const { data: finalPublicProfileCheck } = await supabase
+            .from('public_profiles')
+            .select('id')
+            .eq('profile_id', authUser.user.id)
+            .maybeSingle()
+
+          if (finalProfileCheck && finalPublicProfileCheck) {
+            console.log('[Registration] ✅ Trigger completed after final wait')
+          } else {
+            console.error(
+              '[Registration] ❌ Trigger failed after 3500ms total wait time'
+            )
+            console.error('[Registration] Profile exists:', !!finalProfileCheck)
+            console.error(
+              '[Registration] Public profile exists:',
+              !!finalPublicProfileCheck
+            )
+
+            // Cleanup: delete auth user since profiles were not created
+            await supabase.auth.admin.deleteUser(authUser.user.id)
+            return c.json(
+              {
+                error: 'Registration failed - profile creation timeout',
+                details: 'Database trigger did not complete in expected time',
+              },
+              500
+            )
+          }
+        }
       }
 
-      // Create public profile record
-      const { error: publicProfileError } = await supabase
-        .from('public_profiles')
-        .insert({
-          profile_id: authUser.user.id,
-          display_name: displayName,
-        })
-
-      if (publicProfileError) {
-        console.error('Public profile creation error:', publicProfileError)
-        return c.json({ error: 'Failed to create public profile' }, 500)
-      }
-
-      // Initialize user preferences and statistics (if functions exist)
+      // Initialize user preferences (direct insert, defaults from table schema)
       try {
-        await supabase.rpc('initialize_user_preferences', {
-          p_user_id: authUser.user.id,
+        await supabase.from('user_preferences').insert({
+          user_id: authUser.user.id,
+          // Other columns use DEFAULT values from table schema:
+          // theme: 'dark', language: 'en', sound_enabled: true, etc.
         })
       } catch (prefError) {
         console.warn('User preferences initialization skipped:', prefError)
-      }
-
-      try {
-        await supabase.rpc('initialize_player_statistics', {
-          p_player_id: authUser.user.id,
-        })
-      } catch (statsError) {
-        console.warn('Player statistics initialization skipped:', statsError)
       }
 
       // Generate tokens
       const accessToken = generateJWTToken(authUser.user.id, email)
       const refreshToken = generateRefreshToken(authUser.user.id)
 
-      // Create user session (if function exists)
-      try {
-        await supabase.rpc('create_user_session', {
-          p_user_id: authUser.user.id,
-          p_session_token: accessToken,
-          p_refresh_token: refreshToken,
-          p_device_type: c.req.header('User-Agent')?.includes('Mobile')
-            ? 'mobile'
-            : 'desktop',
-          p_ip_address:
-            c.req.header('X-Forwarded-For') ||
-            c.req.header('X-Real-IP') ||
-            'unknown',
-          p_user_agent: c.req.header('User-Agent'),
-        })
-      } catch (sessionError) {
-        console.warn(
-          'Session creation skipped - function not available:',
-          sessionError
-        )
-      }
+      // Create user session directly (using service_role RLS policy)
+      const deviceType = c.req.header('User-Agent')?.includes('Mobile')
+        ? 'mobile'
+        : 'desktop'
+      const ipAddress =
+        c.req.header('X-Forwarded-For') || c.req.header('X-Real-IP') || null // Use null instead of 'unknown' for inet type
 
-      // Log registration event (if function exists)
-      try {
-        await supabase.rpc('log_system_event', {
-          p_event_type: 'user_registration',
-          p_event_category: 'user_action',
-          p_user_id: authUser.user.id,
-          p_event_data: JSON.stringify({ email, display_name: displayName }),
+      console.log('[Registration] Creating session for user:', authUser.user.id)
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('user_sessions')
+        .insert({
+          user_id: authUser.user.id,
+          session_token: hashToken(accessToken), // Hash for security
+          refresh_token: hashToken(refreshToken), // Hash for security
+          device_type: deviceType,
+          ip_address: ipAddress,
+          user_agent: c.req.header('User-Agent') || null,
+          is_active: true,
+          last_activity_at: new Date().toISOString(),
+          expires_at: new Date(
+            Date.now() + 7 * 24 * 60 * 60 * 1000
+          ).toISOString(), // 7 days
         })
-      } catch (logError) {
-        console.warn(
-          'Event logging skipped - function not available:',
-          logError
+        .select()
+
+      if (sessionError) {
+        console.error('[Registration] Session creation failed:', sessionError)
+        console.error(
+          '[Registration] Session error details:',
+          JSON.stringify(sessionError)
         )
+      } else {
+        console.log('[Registration] Session created successfully:', sessionData)
       }
 
       return c.json(
@@ -211,6 +294,7 @@ auth.post(
  */
 auth.post(
   '/login',
+  loginRateLimit,
   validator('json', (value, c) => {
     const parsed = loginSchema.safeParse(value)
     if (!parsed.success) {
@@ -266,34 +350,46 @@ auth.post(
       const accessToken = generateJWTToken(user.id, email)
       const refreshToken = generateRefreshToken(user.id)
 
-      // Create new user session
-      await supabase.rpc('create_user_session', {
-        p_user_id: user.id,
-        p_session_token: accessToken,
-        p_refresh_token: refreshToken,
-        p_device_type: c.req.header('User-Agent')?.includes('Mobile')
-          ? 'mobile'
-          : 'desktop',
-        p_ip_address:
-          c.req.header('X-Forwarded-For') ||
-          c.req.header('X-Real-IP') ||
-          'unknown',
-        p_user_agent: c.req.header('User-Agent'),
-      })
+      // Create new user session directly (using service_role RLS policy)
+      const deviceType = c.req.header('User-Agent')?.includes('Mobile')
+        ? 'mobile'
+        : 'desktop'
+      const ipAddress =
+        c.req.header('X-Forwarded-For') || c.req.header('X-Real-IP') || null // Use null instead of 'unknown' for inet type
+
+      console.log('[Login] Creating session for user:', user.id)
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('user_sessions')
+        .insert({
+          user_id: user.id,
+          session_token: hashToken(accessToken), // Hash for security
+          refresh_token: hashToken(refreshToken), // Hash for security
+          device_type: deviceType,
+          ip_address: ipAddress,
+          user_agent: c.req.header('User-Agent') || null,
+          is_active: true,
+          last_activity_at: new Date().toISOString(),
+          expires_at: new Date(
+            Date.now() + 7 * 24 * 60 * 60 * 1000
+          ).toISOString(), // 7 days
+        })
+        .select()
+
+      if (sessionError) {
+        console.error('[Login] Session creation failed:', sessionError)
+        console.error(
+          '[Login] Session error details:',
+          JSON.stringify(sessionError)
+        )
+      } else {
+        console.log('[Login] Session created successfully:', sessionData)
+      }
 
       // Update last seen
       await supabase
         .from('profiles')
         .update({ last_seen_at: new Date().toISOString() })
         .eq('id', user.id)
-
-      // Log login event
-      await supabase.rpc('log_system_event', {
-        p_event_type: 'user_login',
-        p_event_category: 'user_action',
-        p_user_id: user.id,
-        p_event_data: JSON.stringify({ email }),
-      })
 
       return c.json({
         message: 'Login successful',
@@ -321,6 +417,7 @@ auth.post(
  */
 auth.post(
   '/refresh',
+  refreshRateLimit,
   validator('json', (value, c) => {
     const parsed = refreshSchema.safeParse(value)
     if (!parsed.success) {
@@ -337,17 +434,18 @@ auth.post(
       const supabase = getSupabase()
 
       // Verify refresh token
-      const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET!) as any
+      const decoded = jwt.verify(refreshToken, getJWTSecret()) as any
 
       if (decoded.type !== 'refresh') {
         return c.json({ error: 'Invalid refresh token' }, 401)
       }
 
-      // Check if refresh token exists and is active
+      // Check if refresh token exists and is active (hash for lookup)
+      const hashedRefreshToken = hashToken(refreshToken)
       const { data: session, error: sessionError } = await supabase
         .from('user_sessions')
         .select('user_id, is_active')
-        .eq('refresh_token', refreshToken)
+        .eq('refresh_token', hashedRefreshToken)
         .eq('is_active', true)
         .single()
 
@@ -370,15 +468,15 @@ auth.post(
       const newAccessToken = generateJWTToken(user.id, user.email)
       const newRefreshToken = generateRefreshToken(user.id)
 
-      // Update session with new tokens
+      // Update session with new tokens (hash for security)
       await supabase
         .from('user_sessions')
         .update({
-          session_token: newAccessToken,
-          refresh_token: newRefreshToken,
+          session_token: hashToken(newAccessToken),
+          refresh_token: hashToken(newRefreshToken),
           last_activity_at: new Date().toISOString(),
         })
-        .eq('refresh_token', refreshToken)
+        .eq('refresh_token', hashedRefreshToken)
 
       return c.json({
         tokens: {
@@ -399,28 +497,20 @@ auth.post(
  */
 auth.post('/logout', authMiddleware, async c => {
   try {
-    const user = c.get('user')
     const authorization = c.req.header('Authorization')
     const token = authorization?.split(' ')[1]
     const supabase = getSupabase()
 
     if (token) {
-      // Deactivate session
+      // Deactivate session (hash token for lookup)
+      const hashedToken = hashToken(token)
       await supabase
         .from('user_sessions')
         .update({
           is_active: false,
           terminated_at: new Date().toISOString(),
         })
-        .eq('session_token', token)
-
-      // Log logout event
-      await supabase.rpc('log_system_event', {
-        p_event_type: 'user_logout',
-        p_event_category: 'user_action',
-        p_user_id: user.userId,
-        p_event_data: JSON.stringify({}),
-      })
+        .eq('session_token', hashedToken)
     }
 
     return c.json({ message: 'Logout successful' })

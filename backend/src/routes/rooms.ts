@@ -4,11 +4,31 @@
 
 import { Hono } from 'hono'
 import { authMiddleware } from '../middleware/auth.js'
+import { rateLimit } from '../middleware/rateLimit.js'
 import { z } from 'zod'
 import { validator } from 'hono/validator'
 import { getSupabase } from '../lib/supabase.js'
+import { logAction, ActionType } from '../services/auditService.js'
+import {
+  createRoomWithCreator,
+  joinRoomSafely,
+  startGameWithDeal,
+} from '../services/roomService.js'
 
 const rooms = new Hono()
+
+// Rate limit configurations
+const createRoomRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 5,
+  message: 'Too many room creation attempts, please try again later',
+})
+
+const joinRoomRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 10,
+  message: 'Too many room join attempts, please try again later',
+})
 
 // Validation schemas
 const createGameSchema = z.object({
@@ -26,6 +46,7 @@ const joinGameSchema = z.object({
  */
 rooms.post(
   '/create',
+  createRoomRateLimit,
   authMiddleware,
   validator('json', (value, c) => {
     const parsed = createGameSchema.safeParse(value)
@@ -41,8 +62,6 @@ rooms.post(
     try {
       const user = c.get('user')
       const { timeLimitSeconds } = c.req.valid('json')
-      const supabase = getSupabase()
-      // const maxPlayers = 2 // Fixed to 2 players for simplified mobile version
 
       // Create game deck (6 cards each of 4 creatures = 24 cards total)
       const creatures = ['cockroach', 'mouse', 'bat', 'frog']
@@ -59,56 +78,27 @@ rooms.post(
         ;[gameDeck[i], gameDeck[j]] = [gameDeck[j], gameDeck[i]]
       }
 
-      // Create game
-      const { data: game, error: gameError } = await supabase
-        .from('games')
-        .insert({
-          creator_id: user.userId,
-          status: 'waiting',
-          time_limit_seconds: timeLimitSeconds,
-          game_deck: gameDeck,
-          round_number: 0,
-        })
-        .select()
-        .single()
+      // Create room via service
+      const result = await createRoomWithCreator(
+        user.userId,
+        timeLimitSeconds,
+        gameDeck
+      )
 
-      if (gameError || !game) {
-        console.error('Game creation error:', gameError)
-        return c.json({ error: 'Failed to create game' }, 500)
-      }
-
-      // Add creator as first participant
-      const { error: participantError } = await supabase
-        .from('game_participants')
-        .insert({
-          game_id: game.id,
-          player_id: user.userId,
-          position: 1,
-          hand_cards: [],
-          penalty_cockroach: [],
-          penalty_mouse: [],
-          penalty_bat: [],
-          penalty_frog: [],
-          cards_remaining: 0,
-          has_lost: false,
-          status: 'joined',
-        })
-
-      if (participantError) {
-        console.error('Participant creation error:', participantError)
-        return c.json({ error: 'Failed to add creator to game' }, 500)
+      if (!result.success) {
+        return c.json({ error: result.error }, 500)
       }
 
       return c.json(
         {
           message: 'Game created successfully',
           game: {
-            id: game.id,
+            id: result.gameId,
             maxPlayers: 2,
             currentPlayers: 1,
-            status: game.status,
-            timeLimitSeconds: game.time_limit_seconds,
-            createdAt: game.created_at,
+            status: result.status,
+            timeLimitSeconds: timeLimitSeconds,
+            createdAt: result.createdAt,
           },
         },
         201
@@ -141,10 +131,11 @@ rooms.get('/list', authMiddleware, async c => {
             display_name,
             avatar_url
           )
-        )
+        ),
+        game_participants(id)
       `
       )
-      .in('status', ['waiting', 'active'])
+      .in('status', ['waiting', 'in_progress'])
       .order('created_at', { ascending: false })
       .limit(20)
 
@@ -158,14 +149,14 @@ rooms.get('/list', authMiddleware, async c => {
         games?.map(game => ({
           id: game.id,
           maxPlayers: 2,
-          currentPlayers: 1, // TODO: calculate from game_participants
+          currentPlayers: (game.game_participants as any[])?.length || 0,
           status: game.status,
           timeLimitSeconds: game.time_limit_seconds,
           creatorName:
             (game.profiles as any)?.public_profiles?.[0]?.display_name ||
             'Unknown',
-          creatorAvatarUrl:
-            (game.profiles as any)?.public_profiles?.[0]?.avatar_url,
+          creatorAvatarUrl: (game.profiles as any)?.public_profiles?.[0]
+            ?.avatar_url,
           createdAt: game.created_at,
         })) || [],
     })
@@ -181,6 +172,7 @@ rooms.get('/list', authMiddleware, async c => {
  */
 rooms.post(
   '/join',
+  joinRoomRateLimit,
   authMiddleware,
   validator('json', (value, c) => {
     const parsed = joinGameSchema.safeParse(value)
@@ -196,79 +188,36 @@ rooms.post(
     try {
       const user = c.get('user')
       const { gameId } = c.req.valid('json')
-      const supabase = getSupabase()
 
-      // Check if game exists and can be joined
-      const { data: game, error: gameError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', gameId)
-        .single()
+      // Join room via service
+      const result = await joinRoomSafely(gameId, user.userId)
 
-      if (gameError || !game) {
-        return c.json({ error: 'Game not found' }, 404)
+      if (!result.success) {
+        const statusCode =
+          result.errorCode === 'GAME_NOT_FOUND'
+            ? 404
+            : result.errorCode === 'ALREADY_JOINED'
+              ? 409
+              : 400
+
+        return c.json({ error: result.error }, statusCode)
       }
 
-      if (game.status !== 'waiting') {
-        return c.json({ error: 'Game already started or completed' }, 400)
-      }
-
-      // Check if game is full (calculate from participants)
-      const { data: participants } = await supabase
-        .from('game_participants')
-        .select('id')
-        .eq('game_id', gameId)
-
-      if (participants && participants.length >= 2) {
-        return c.json({ error: 'Game is full' }, 400)
-      }
-
-      // Check if user already joined
-      const { data: existingParticipant } = await supabase
-        .from('game_participants')
-        .select('id')
-        .eq('game_id', gameId)
-        .eq('player_id', user.userId)
-        .single()
-
-      if (existingParticipant) {
-        return c.json({ error: 'Already joined this game' }, 409)
-      }
-
-      // Add player to game
-      const newPosition = participants ? participants.length + 1 : 2
-      const { error: participantError } = await supabase
-        .from('game_participants')
-        .insert({
-          game_id: gameId,
-          player_id: user.userId,
-          position: newPosition,
-          hand_cards: [],
-          penalty_cockroach: [],
-          penalty_mouse: [],
-          penalty_bat: [],
-          penalty_frog: [],
-          cards_remaining: 0,
-          has_lost: false,
-          status: 'joined',
-        })
-
-      if (participantError) {
-        console.error('Join game error:', participantError)
-        return c.json({ error: 'Failed to join game' }, 500)
-      }
-
-      // Update game player count
-      await supabase
-        .from('games')
-        .update({
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', gameId)
+      // Log join_game action
+      await logAction({
+        gameId,
+        roundId: null,
+        playerId: user.userId,
+        actionType: ActionType.JOIN_GAME,
+        actionData: {
+          position: result.position,
+          joined_at: new Date().toISOString(),
+        },
+      })
 
       return c.json({
         message: 'Successfully joined game',
-        position: newPosition,
+        position: result.position,
       })
     } catch (error) {
       console.error('Join game error:', error)
@@ -316,50 +265,34 @@ rooms.post('/:id/start', authMiddleware, async c => {
       return c.json({ error: 'Exactly 2 players required to start' }, 400)
     }
 
-    // Deal cards to players (9 cards each, 6 cards remain hidden)
+    // Deal cards atomically using stored function (9 cards each, 6 cards remain hidden)
     const cardsPerPlayer = 9
     const gameDeck = [...game.game_deck]
 
-    const { data: allParticipants } = await supabase
-      .from('game_participants')
-      .select('*')
-      .eq('game_id', gameId)
-      .order('position')
+    // Start game via service
+    const result = await startGameWithDeal(gameId, cardsPerPlayer, gameDeck)
 
-    // Deal cards
-    if (allParticipants) {
-      for (let i = 0; i < allParticipants.length; i++) {
-        const playerCards = gameDeck.splice(0, cardsPerPlayer)
-        await supabase
-          .from('game_participants')
-          .update({
-            hand_cards: playerCards,
-            cards_remaining: playerCards.length,
-          })
-          .eq('id', allParticipants[i].id)
-      }
+    if (!result.success) {
+      return c.json({ error: result.error }, 500)
     }
 
-    // Update game status
-    const { error: updateError } = await supabase
-      .from('games')
-      .update({
-        status: 'active',
-        current_turn_player_id: allParticipants?.[0]?.player_id || null,
-        round_number: 1,
-        game_deck: gameDeck,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', gameId)
-
-    if (updateError) {
-      console.error('Start game error:', updateError)
-      return c.json({ error: 'Failed to start game' }, 500)
-    }
+    // Log start_game action
+    await logAction({
+      gameId,
+      roundId: null,
+      playerId: user.userId,
+      actionType: ActionType.START_GAME,
+      actionData: {
+        participant_count: 2,
+        cards_per_player: cardsPerPlayer,
+        first_player: result.currentTurnPlayerId,
+        started_at: new Date().toISOString(),
+      },
+    })
 
     return c.json({
       message: 'Game started successfully',
-      currentTurnPlayer: allParticipants?.[0]?.player_id || null,
+      currentTurnPlayer: result.currentTurnPlayerId,
     })
   } catch (error) {
     console.error('Start game error:', error)
@@ -427,9 +360,9 @@ rooms.get('/:id', authMiddleware, async c => {
       .eq('game_id', gameId)
       .order('position')
 
-    // Get current round if active
+    // Get current round if in progress
     let currentRound = null
-    if (game.status === 'active') {
+    if (game.status === 'in_progress') {
       const { data: round } = await supabase
         .from('game_rounds')
         .select('*')
@@ -445,7 +378,7 @@ rooms.get('/:id', authMiddleware, async c => {
         id: game.id,
         status: game.status,
         maxPlayers: 2,
-        currentPlayers: 2,
+        currentPlayers: participants?.length || 0,
         currentTurnPlayer: game.current_turn_player_id,
         roundNumber: game.round_number,
         timeLimitSeconds: game.time_limit_seconds,
@@ -474,6 +407,79 @@ rooms.get('/:id', authMiddleware, async c => {
     })
   } catch (error) {
     console.error('Get game details error:', error)
+    return c.json({ error: 'Internal server error' }, 500)
+  }
+})
+
+/**
+ * POST /api/rooms/:id/leave
+ * Leave a game (only allowed before game starts)
+ */
+rooms.post('/:id/leave', authMiddleware, async c => {
+  try {
+    const gameId = c.req.param('id')
+    const user = c.get('user')
+    const supabase = getSupabase()
+
+    // Check game status
+    const { data: game } = await supabase
+      .from('games')
+      .select('status')
+      .eq('id', gameId)
+      .single()
+
+    if (!game) {
+      return c.json({ error: 'Game not found' }, 404)
+    }
+
+    // Cannot leave game in progress
+    if (game.status === 'in_progress') {
+      return c.json({ error: 'Cannot leave game in progress' }, 400)
+    }
+
+    // Cannot leave completed game
+    if (game.status === 'completed') {
+      return c.json({ error: 'Game already completed' }, 400)
+    }
+
+    // Verify user is participant
+    const { data: participant } = await supabase
+      .from('game_participants')
+      .select('id')
+      .eq('game_id', gameId)
+      .eq('player_id', user.userId)
+      .single()
+
+    if (!participant) {
+      return c.json({ error: 'You are not a participant in this game' }, 403)
+    }
+
+    // Remove participant
+    const { error: deleteError } = await supabase
+      .from('game_participants')
+      .delete()
+      .eq('game_id', gameId)
+      .eq('player_id', user.userId)
+
+    if (deleteError) {
+      console.error('Leave game error:', deleteError)
+      return c.json({ error: 'Failed to leave game' }, 500)
+    }
+
+    // Log leave_game action
+    await logAction({
+      gameId,
+      roundId: null,
+      playerId: user.userId,
+      actionType: ActionType.LEAVE_GAME,
+      actionData: {
+        left_at: new Date().toISOString(),
+      },
+    })
+
+    return c.json({ message: 'Successfully left game' })
+  } catch (error) {
+    console.error('Leave game error:', error)
     return c.json({ error: 'Internal server error' }, 500)
   }
 })

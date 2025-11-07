@@ -5,6 +5,7 @@
 import { Server, Socket } from 'socket.io'
 import jwt from 'jsonwebtoken'
 import { getSupabase } from '../lib/supabase.js'
+import { getJWTSecret } from '../middleware/auth.js'
 
 // Store active game rooms and player connections
 const activeRooms = new Map<string, Set<string>>() // gameId -> Set of socketIds
@@ -22,7 +23,7 @@ async function authenticateSocket(
   token: string
 ): Promise<boolean> {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
+    const decoded = jwt.verify(token, getJWTSecret()) as any
     if (decoded.userId) {
       socket.userId = decoded.userId
       playerSockets.set(decoded.userId, socket.id)
@@ -144,8 +145,8 @@ async function handleCardClaim(
       return
     }
 
-    if (game.status !== 'active') {
-      socket.emit('error', { message: 'Game is not active' })
+    if (game.status !== 'in_progress') {
+      socket.emit('error', { message: 'Game is not in progress' })
       return
     }
 
@@ -348,7 +349,7 @@ import {
   type CardClaimData,
   type ClaimResponseData,
   type CardPassData,
-} from '../services/gameLogic.js'
+} from '../services/gameService.js'
 
 // Helper functions that use shared game logic
 async function processCardClaim(

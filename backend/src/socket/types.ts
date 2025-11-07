@@ -80,7 +80,7 @@ export interface Participant {
 
 export interface RoomState {
   id: string
-  status: 'waiting' | 'active' | 'completed'
+  status: 'waiting' | 'in_progress' | 'completed' | 'cancelled'
   settings: RoomSettings
   created_at: string
   started_at: string | null
@@ -178,7 +178,7 @@ export interface CurrentRound {
 export interface GameStateUpdateEvent {
   room_id: string
   game_state: {
-    status: 'waiting' | 'active' | 'paused' | 'completed'
+    status: 'waiting' | 'in_progress' | 'completed' | 'cancelled'
     current_turn_player_id: string | null
     round_number: number
     current_round: CurrentRound | null

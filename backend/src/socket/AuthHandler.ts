@@ -7,6 +7,7 @@ import { Server } from 'socket.io'
 import jwt from 'jsonwebtoken'
 import { v4 as uuidv4 } from 'uuid'
 import { getSupabase } from '../lib/supabase.js'
+import { getJWTSecret } from '../middleware/auth.js'
 import type {
   AuthenticatedSocket,
   AuthenticateEvent,
@@ -53,8 +54,14 @@ async function handleAuthentication(
   data: AuthenticateEvent
 ) {
   try {
+    console.log('[Auth Debug] Starting authentication', {
+      hasToken: !!data?.access_token,
+      hasDeviceInfo: !!data?.device_info,
+    })
+
     // Validate payload
     if (!data?.access_token || !data?.device_info) {
+      console.log('[Auth Debug] Missing authentication data')
       const error: AuthenticationFailedEvent = {
         error_code: 'INVALID_TOKEN',
         message: 'Missing required authentication data',
@@ -67,8 +74,18 @@ async function handleAuthentication(
     // Verify JWT token
     let decoded: any
     try {
-      decoded = jwt.verify(data.access_token, process.env.JWT_SECRET!)
+      console.log('[Auth Debug] Verifying JWT token...')
+      decoded = jwt.verify(data.access_token, getJWTSecret())
+      console.log('[Auth Debug] JWT decoded:', {
+        userId: decoded.userId,
+        sub: decoded.sub,
+        email: decoded.email,
+      })
     } catch (jwtError: any) {
+      console.log('[Auth Debug] JWT verification failed:', {
+        name: jwtError.name,
+        message: jwtError.message,
+      })
       let error: AuthenticationFailedEvent
 
       if (jwtError.name === 'TokenExpiredError') {
@@ -91,6 +108,7 @@ async function handleAuthentication(
 
     const userId = decoded.userId || decoded.sub
     if (!userId) {
+      console.log('[Auth Debug] No userId in token')
       const error: AuthenticationFailedEvent = {
         error_code: 'INVALID_TOKEN',
         message: 'Token does not contain user ID',
@@ -100,23 +118,23 @@ async function handleAuthentication(
       return
     }
 
+    console.log('[Auth Debug] Querying profile for userId:', userId)
+
     // Get user profile from database
     const supabase = getSupabase()
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select(
-        `
-        id,
-        is_active,
-        public_profiles (
-          display_name
-        )
-      `
-      )
+      .select('id, is_active')
       .eq('id', userId)
       .single()
 
+    console.log('[Auth Debug] Profile query result:', {
+      profile,
+      profileError,
+    })
+
     if (profileError || !profile) {
+      console.log('[Auth Debug] Profile not found or error')
       const error: AuthenticationFailedEvent = {
         error_code: 'INVALID_TOKEN',
         message: 'User profile not found',
@@ -128,6 +146,7 @@ async function handleAuthentication(
 
     // Check if user is banned
     if (!profile.is_active) {
+      console.log('[Auth Debug] User is inactive/banned')
       const error: AuthenticationFailedEvent = {
         error_code: 'USER_BANNED',
         message: 'User account has been suspended',
@@ -137,13 +156,22 @@ async function handleAuthentication(
       return
     }
 
+    // Get display name from public_profiles
+    console.log('[Auth Debug] Querying public_profiles for userId:', userId)
+    const { data: publicProfile } = await supabase
+      .from('public_profiles')
+      .select('display_name')
+      .eq('profile_id', userId)
+      .single()
+
+    console.log('[Auth Debug] Public profile query result:', { publicProfile })
+
     // Generate connection ID
     const connectionId = uuidv4()
 
     // Store authentication data in socket
     socket.userId = userId
-    socket.displayName =
-      (profile.public_profiles as any)?.display_name || 'Anonymous'
+    socket.displayName = publicProfile?.display_name || 'Anonymous'
     socket.deviceId = data.device_info.device_id
     socket.connectionId = connectionId
 
@@ -164,19 +192,6 @@ async function handleAuthentication(
       })
       .eq('id', userId)
 
-    // Log device connection
-    await supabase.rpc('log_system_event', {
-      p_event_type: 'websocket_connected',
-      p_event_category: 'connection',
-      p_user_id: userId,
-      p_event_data: JSON.stringify({
-        device_id: data.device_info.device_id,
-        platform: data.device_info.platform,
-        app_version: data.device_info.app_version,
-        connection_id: connectionId,
-      }),
-    })
-
     // Send success response
     const response: AuthenticatedEvent = {
       user_id: userId,
@@ -184,6 +199,8 @@ async function handleAuthentication(
       server_time: new Date().toISOString(),
       connection_id: connectionId,
     }
+
+    console.log('[Auth Debug] Emitting authenticated event:', response)
     socket.emit('authenticated', response)
 
     console.log(
@@ -221,18 +238,6 @@ function handleDisconnection(socket: AuthenticatedSocket) {
     activeConnections.delete(userId)
   }
   connectionDetails.delete(connectionId)
-
-  // Log disconnection (fire and forget)
-  const supabase = getSupabase()
-  supabase.rpc('log_system_event', {
-    p_event_type: 'websocket_disconnected',
-    p_event_category: 'connection',
-    p_user_id: userId,
-    p_event_data: JSON.stringify({
-      connection_id: connectionId,
-      device_id: socket.deviceId,
-    }),
-  })
 }
 
 /**

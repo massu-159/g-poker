@@ -3,7 +3,6 @@
  * Handles game action events and broadcasts state updates
  */
 
-import { randomUUID } from 'crypto'
 import { Server } from 'socket.io'
 import type {
   AuthenticatedSocket,
@@ -23,6 +22,11 @@ import type {
 } from './types.js'
 import { isAuthenticated } from './AuthHandler.js'
 import { getSupabase } from '../lib/supabase.js'
+import {
+  processCardClaim,
+  processClaimResponse,
+  processCardPass,
+} from '../services/gameService.js'
 
 /**
  * Setup game action handlers
@@ -69,86 +73,19 @@ async function handleClaimCard(
       return
     }
 
-    const supabase = getSupabase()
     const userId = socket.userId
 
-    // Verify user is in the room
-    const { data: participation } = await supabase
-      .from('room_participants')
-      .select('*')
-      .eq('room_id', data.room_id)
-      .eq('player_id', userId)
-      .single()
-
-    if (!participation) {
-      emitGameActionError(socket, {
-        error_code: 'PLAYER_NOT_IN_GAME',
-        message: 'You are not a participant in this game',
-        action_attempted: 'claim_card',
-      })
-      return
-    }
-
-    // Get game state
-    const { data: room } = await supabase
-      .from('game_rooms')
-      .select('*')
-      .eq('id', data.room_id)
-      .single()
-
-    if (!room) {
-      emitGameActionError(socket, {
-        error_code: 'GAME_NOT_ACTIVE',
-        message: 'Game not found',
-        action_attempted: 'claim_card',
-      })
-      return
-    }
-
-    if (room.status !== 'active') {
-      emitGameActionError(socket, {
-        error_code: 'GAME_NOT_ACTIVE',
-        message: 'Game is not active',
-        action_attempted: 'claim_card',
-      })
-      return
-    }
-
-    // Verify it's player's turn (simplified - in real game, check turn order)
-    const { data: gameSession } = await supabase
-      .from('game_sessions')
-      .select('*')
-      .eq('room_id', data.room_id)
-      .eq('status', 'active')
-      .single()
-
-    if (!gameSession) {
-      emitGameActionError(socket, {
-        error_code: 'GAME_NOT_ACTIVE',
-        message: 'No active game session',
-        action_attempted: 'claim_card',
-      })
-      return
-    }
-
-    // Create a new game round
-    const roundId = randomUUID()
-    const { error: roundError } = await supabase.from('game_rounds').insert({
-      id: roundId,
-      game_id: gameSession.id,
-      round_number: (gameSession.current_round_number || 0) + 1,
-      claiming_player_id: userId,
-      claimed_creature_type: data.claimed_creature,
-      target_player_id: data.target_player_id,
-      pass_count: 0,
-      is_completed: false,
+    // Call gameService to process the claim
+    const result = await processCardClaim(data.room_id, userId, {
+      cardId: data.card_id,
+      claimedCreature: data.claimed_creature,
+      targetPlayerId: data.target_player_id,
     })
 
-    if (roundError) {
-      console.error('[Game] Failed to create round:', roundError)
+    if (!result.success) {
       emitGameActionError(socket, {
         error_code: 'INVALID_ACTION',
-        message: 'Failed to create game round',
+        message: result.error || 'Failed to process claim',
         action_attempted: 'claim_card',
       })
       return
@@ -160,7 +97,7 @@ async function handleClaimCard(
       claiming_player_id: userId,
       claimed_creature: data.claimed_creature,
       target_player_id: data.target_player_id,
-      round_id: roundId,
+      round_id: result.data.roundId,
       timestamp: new Date().toISOString(),
     }
     io.to(data.room_id).emit('card_claimed', claimedEvent)
@@ -199,103 +136,65 @@ async function handleRespondToClaim(
       return
     }
 
-    const supabase = getSupabase()
     const userId = socket.userId
 
-    // Get the round
-    const { data: round } = await supabase
-      .from('game_rounds')
-      .select('*')
-      .eq('id', data.round_id)
-      .single()
+    // Call gameService to process the response
+    const result = await processClaimResponse(data.room_id, userId, {
+      roundId: data.round_id,
+      believeClaim: data.believe_claim,
+    })
 
-    if (!round) {
+    if (!result.success) {
       emitGameActionError(socket, {
         error_code: 'INVALID_ACTION',
-        message: 'Round not found',
+        message: result.error || 'Failed to process response',
         action_attempted: 'respond_to_claim',
       })
       return
     }
 
-    // Verify it's the target player responding
-    if (round.target_player_id !== userId) {
-      emitGameActionError(socket, {
-        error_code: 'NOT_YOUR_TURN',
-        message: 'You are not the target of this claim',
-        action_attempted: 'respond_to_claim',
-      })
-      return
-    }
-
-    // Determine outcome (simplified logic - in real game, check actual card)
-    const wasCorrect = data.believe_claim // Simplified for now
-    const penaltyReceiverId = wasCorrect
-      ? round.claiming_player_id
-      : round.target_player_id
-
-    // Update round
-    await supabase
-      .from('game_rounds')
-      .update({
-        is_completed: true,
-        believed_claim: data.believe_claim,
-        penalty_receiver_id: penaltyReceiverId,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', data.round_id)
+    const roundResult = result.data.roundResult
 
     // Broadcast claim responded event
     const respondedEvent: ClaimRespondedEvent = {
       room_id: data.room_id,
       responder_id: userId,
       believed_claim: data.believe_claim,
-      actual_creature: round.claimed_creature_type, // Simplified
-      was_correct: wasCorrect,
-      penalty_receiver_id: penaltyReceiverId,
+      actual_creature: roundResult.actualCard.creature,
+      was_correct: roundResult.claimWasTruthful === roundResult.playerGuess,
+      penalty_receiver_id: roundResult.penaltyReceiver,
       timestamp: new Date().toISOString(),
     }
     io.to(data.room_id).emit('claim_responded', respondedEvent)
 
-    // Check if game ended (simplified - check if player has 4 penalty cards)
-    const { data: participant } = await supabase
-      .from('room_participants')
-      .select('*')
-      .eq('room_id', data.room_id)
-      .eq('player_id', penaltyReceiverId)
-      .single()
-
-    const totalPenalties = (participant?.penalty_cards as any)?.total || 0
-    if (totalPenalties >= 4) {
-      // Game ended
+    // Check if game ended
+    if (roundResult.gameOver) {
       const gameEndedEvent: GameEndedEvent = {
         room_id: data.room_id,
-        winner_id:
-          penaltyReceiverId === userId ? round.claiming_player_id : userId,
+        winner_id: roundResult.winner,
         losers: [
           {
-            player_id: penaltyReceiverId,
+            player_id: roundResult.penaltyReceiver,
             penalty_cards: {
               cockroach: 0,
               mouse: 0,
               bat: 0,
               frog: 0,
-              total: totalPenalties,
+              total: 0,
             },
           },
         ],
-        game_duration_seconds: 0, // Calculate from game start
+        game_duration_seconds: 0,
         timestamp: new Date().toISOString(),
       }
       io.to(data.room_id).emit('game_ended', gameEndedEvent)
     } else {
-      // Round completed
       const roundCompletedEvent: RoundCompletedEvent = {
         room_id: data.room_id,
-        round_number: round.round_number,
-        loser_id: penaltyReceiverId,
-        penalty_creature: round.claimed_creature_type,
-        next_turn_player_id: penaltyReceiverId, // Loser starts next round
+        round_number: 0,
+        loser_id: roundResult.penaltyReceiver,
+        penalty_creature: roundResult.actualCard.creature,
+        next_turn_player_id: roundResult.nextTurnPlayer,
         timestamp: new Date().toISOString(),
       }
       io.to(data.room_id).emit('round_completed', roundCompletedEvent)
@@ -335,35 +234,23 @@ async function handlePassCard(
       return
     }
 
-    const supabase = getSupabase()
     const userId = socket.userId
 
-    // Get the round
-    const { data: round } = await supabase
-      .from('game_rounds')
-      .select('*')
-      .eq('id', data.round_id)
-      .single()
+    // Call gameService to process the pass
+    const result = await processCardPass(data.room_id, userId, {
+      roundId: data.round_id,
+      targetPlayerId: data.target_player_id,
+      newClaim: data.new_claim,
+    })
 
-    if (!round) {
+    if (!result.success) {
       emitGameActionError(socket, {
         error_code: 'INVALID_ACTION',
-        message: 'Round not found',
+        message: result.error || 'Failed to process pass',
         action_attempted: 'pass_card',
       })
       return
     }
-
-    // Update round with new claim and target
-    const newPassCount = (round.pass_count || 0) + 1
-    await supabase
-      .from('game_rounds')
-      .update({
-        claimed_creature_type: data.new_claim,
-        target_player_id: data.target_player_id,
-        pass_count: newPassCount,
-      })
-      .eq('id', data.round_id)
 
     // Broadcast card passed event
     const passedEvent: CardPassedEvent = {
@@ -371,7 +258,7 @@ async function handlePassCard(
       from_player_id: userId,
       to_player_id: data.target_player_id,
       new_claimed_creature: data.new_claim,
-      pass_count: newPassCount,
+      pass_count: result.data.passCount,
       timestamp: new Date().toISOString(),
     }
     io.to(data.room_id).emit('card_passed', passedEvent)
@@ -451,9 +338,9 @@ async function getGameState(
   try {
     const supabase = getSupabase()
 
-    // Get room
+    // Get room (games table)
     const { data: room } = await supabase
-      .from('game_rooms')
+      .from('games')
       .select('*')
       .eq('id', roomId)
       .single()
@@ -462,37 +349,29 @@ async function getGameState(
       return null
     }
 
-    // Get game session
-    const { data: session } = await supabase
-      .from('game_sessions')
-      .select('*')
-      .eq('room_id', roomId)
-      .eq('status', 'active')
-      .single()
-
-    // Get current round
+    // Get current round (no game_sessions table - use game_id directly)
     const { data: currentRound } = await supabase
       .from('game_rounds')
       .select('*')
-      .eq('game_id', session?.id || '')
+      .eq('game_id', roomId)
       .eq('is_completed', false)
       .single()
 
     // Get all participants
     const { data: participants } = await supabase
-      .from('room_participants')
+      .from('game_participants')
       .select(
         `
         *,
-        profiles (
+        profiles!inner (
           public_profiles (
             display_name
           )
         )
       `
       )
-      .eq('room_id', roomId)
-      .order('seat_position')
+      .eq('game_id', roomId)
+      .order('position')
 
     // Build player states
     const players: PlayerGameState[] =
@@ -501,19 +380,24 @@ async function getGameState(
         display_name:
           (p.profiles as any)?.public_profiles?.[0]?.display_name ||
           'Anonymous',
-        seat_position: p.seat_position || 0,
+        seat_position: p.position || 0,
         hand_count: (p.hand_cards as any[])?.length || 0,
         penalty_cards: {
-          cockroach: 0,
-          mouse: 0,
-          bat: 0,
-          frog: 0,
-          total: (p.penalty_cards as any)?.total || 0,
+          cockroach: (p.penalty_cockroach as any[])?.length || 0,
+          mouse: (p.penalty_mouse as any[])?.length || 0,
+          bat: (p.penalty_bat as any[])?.length || 0,
+          frog: (p.penalty_frog as any[])?.length || 0,
+          total:
+            ((p.penalty_cockroach as any[])?.length || 0) +
+            ((p.penalty_mouse as any[])?.length || 0) +
+            ((p.penalty_bat as any[])?.length || 0) +
+            ((p.penalty_frog as any[])?.length || 0),
         },
         is_current_turn: currentRound
           ? currentRound.target_player_id === p.player_id
           : false,
-        connection_status: p.connection_status || 'disconnected',
+        connection_status:
+          p.status === 'playing' ? 'connected' : 'disconnected',
         has_lost: p.has_lost || false,
       })) || []
 
@@ -552,7 +436,7 @@ async function getGameState(
       game_state: {
         status: room.status,
         current_turn_player_id: currentRound?.target_player_id || null,
-        round_number: session?.current_round_number || 0,
+        round_number: room.round_number || 0,
         current_round: roundInfo,
         players: players,
         your_hand: yourHand,
