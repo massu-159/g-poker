@@ -1,0 +1,80 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    // Strict Type-Checking Options
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+
+    // Additional Checks
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "noPropertyAccessFromIndexSignature": true,
+
+    // Module Resolution
+    "moduleResolution": "bundler",
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["./*", "src/*"],
+      "@/components/*": ["components/*", "src/components/*"],
+      "@/services/*": ["services/*", "src/services/*"],
+      "@/lib/*": ["lib/*", "src/lib/*"],
+      "@/types/*": ["types/*", "src/types/*"],
+      "@/config/*": ["config/*", "src/config/*"],
+      "@/stores/*": ["stores/*", "src/stores/*"],
+      "@/hooks/*": ["hooks/*", "src/hooks/*"],
+      "@/screens/*": ["screens/*", "src/screens/*"],
+      "@/navigation/*": ["navigation/*", "src/navigation/*"],
+      "@/constants/*": ["constants/*", "src/constants/*"]
+    },
+
+    // Output
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "module": "ESNext",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    // Interop Constraints
+    "isolatedModules": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // Skip Library Check for performance (but maintain type safety)
+    "skipLibCheck": true,
+
+    // JSX
+    "jsx": "react-jsx",
+
+    // Experimental
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": [
+    "src/**/*",
+    "app/**/*",
+    "App.tsx",
+    "index.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".expo",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ]
+}
