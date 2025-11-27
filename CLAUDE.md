@@ -1,256 +1,96 @@
-# Claude Code Context: ごきぶりポーカー React Native App
+# Claude Code Configuration for G-Poker
 
-## Project Overview
-Online multiplayer ごきぶりポーカー (Cockroach Poker) mobile app built with React Native + Expo. Two players on separate devices play the bluffing card game with real-time synchronization.
+## Development Guidelines
 
-## Current Architecture
-- **Mobile**: React Native 0.81+ with Expo SDK 54+
-- **Backend**: Supabase Cloud (PostgreSQL + Auth + Realtime)
-- **Authentication**: Traditional OAuth + Email Auth (Apple Sign-In, Google Sign-In, Email/Password)
-- **Database**: Supabase Cloud (remote) + AsyncStorage (client cache)
-- **State Management**: Zustand + TanStack Query
-- **Styling**: Shopify Restyle
-- **Animations**: React Native Reanimated 3
-- **Testing**: Jest + React Native Testing Library
-- **Performance**: Real-time monitoring with frame rate tracking and memory optimization
-- **Offline Storage**: AsyncStorage with SQLite-compatible interface for caching
+### Supabase Operations
+**IMPORTANT**: All Supabase operations must use MCP tools instead of command-line tools.
 
-## Database Configuration
-**IMPORTANT**: This project connects directly to Supabase Cloud, NOT local Supabase.
-- **Environment**: Production Supabase project (vwrkmlgziauzchqpxemq)
-- **Connection**: Direct HTTPS API calls to cloud.supabase.com
-- **Local Development**: Uses remote database for consistency
-- **Migration**: Applied directly to cloud database via Supabase Dashboard
+#### Use MCP Tools For:
+- Database migrations: `mcp__supabase__apply_migration`
+- SQL execution: `mcp__supabase__execute_sql`
+- Project management: `mcp__supabase__list_projects`, `mcp__supabase__get_project`
+- Schema operations: `mcp__supabase__list_tables`, `mcp__supabase__list_migrations`
+- Type generation: `mcp__supabase__generate_typescript_types`
 
-## Key Technical Decisions
-1. **Supabase over Custom Server**: Built-in realtime, auth, and database in one service
-2. **Traditional Authentication**: Secure user accounts with Apple/Google OAuth and Email auth for data persistence
-3. **Optimistic Updates**: Immediate UI response, database sync follows  
-4. **Event Sourcing**: All game actions stored as immutable database records
-5. **Battery Optimization**: Supabase handles connection lifecycle automatically
-6. **Network Resilience**: Built-in reconnection, offline SQLite caching
+#### Avoid Command-Line:
+- ❌ `npx supabase db reset`
+- ❌ `npx supabase migration list`
+- ❌ `npx supabase db apply`
 
-## Game Rules Summary
-- 24 cards: 4 creature types (ゴキブリ, ネズミ, コウモリ, カエル) × 6 each
-- Deal: 9 cards per player, 6 cards hidden for randomness
-- Goal: Avoid collecting 3 cards of same creature type (lose condition)
-- Gameplay: Players pass cards with claims (truth/lies), opponent guesses or passes back
-- Penalty: Wrong guesser or caught liar receives the card
+#### Reason:
+MCP provides secure, consistent access to Supabase operations with proper permissions and error handling.
 
-## Directory Structure
-```
-# Product Code
-src/
-├── components/      # Reusable UI (cards, game board) - COMPLETED
-│   ├── cards/       # Card, Hand components with animations
-│   ├── game/        # GameBoard, PlayerArea, GameStatus
-│   └── animations/  # Reanimated 3 animations
-├── screens/         # Lobby, Game, Results screens - COMPLETED
-├── services/        # Supabase client, realtime, storage - COMPLETED
-├── stores/          # Zustand stores for game state - COMPLETED
-└── lib/            # Shared utilities and game logic - COMPLETED
-    ├── entities/    # TypeScript entity models
-    ├── gameLogic/   # Core game mechanics
-    └── performance.ts # Real-time performance monitoring
+## Project Structure (Mobile Server-Authoritative Architecture)
+- **Backend API**: `backend/src/` (Hono framework + Socket.io)
+- **Frontend Mobile**: `frontend/src/` (React Native + Expo)
+- **Shared Types**: `shared/types/` (TypeScript definitions)
+- **Supabase Migrations**: `supabase/migrations/`
+- **Documentation**: `docs/specs/003-g-poker-mobile/`
 
-supabase/
-├── migrations/      # Database schema migrations - APPLIED
-├── functions/       # Edge functions (optional)
-└── config.toml     # Supabase project configuration
+## Server-Authoritative Mobile Architecture (003-g-poker-mobile)
 
-tests/               # 79+ TESTS IMPLEMENTED
-├── integration/     # Supabase integration tests
-├── unit/           # Component and service unit tests
-│   ├── components/  # React Native Testing Library tests
-│   ├── gameLogic/   # Game mechanics unit tests
-│   └── utils/       # Utility function tests
-└── contract/       # API contract tests
+### Technology Stack
+- **Frontend**: React Native 0.74+ with Expo SDK, TypeScript 5.x
+- **Backend**: Hono framework on Node.js 18+, Socket.io with Redis adapter
+- **Database**: Supabase PostgreSQL with simplified RLS policies
+- **Real-time**: Socket.io for game state synchronization
+- **Deployment**: Docker containers on Google Cloud Run
+- **Authentication**: Supabase Auth with JWT validation in Hono middleware
 
-# Design & Development Documentation
-docs/
-├── specs/          # Feature specifications and design documents
-│   └── 001-reactnative-web/
-├── memory/         # Claude Code memory files
-├── templates/      # Task and document templates
-├── scripts/        # Development and deployment scripts
-└── .claude/        # Claude Code configuration
-```
+### Architecture Principles
+- **Server-Authoritative**: Complete backend control over game state and rule enforcement
+- **Zero Client-Side Game Logic**: Mobile app handles UI only, all decisions made on server
+- **Mobile-Only Distribution**: iOS/Android app stores, no web version
+- **Cloud-Native Scaling**: Auto-scaling via Cloud Run with Redis clustering
 
-## Core Data Models
-```typescript
-interface Game {
-  id: string;
-  status: 'waiting_for_players' | 'in_progress' | 'ended' | 'abandoned';
-  players: Player[];
-  currentTurn: string; // Player ID
-  currentRound?: Round;
-}
+### Key Directories
+- `backend/src/services/` - Game logic, room management, player services
+- `backend/src/routes/` - Hono API endpoints (auth, rooms, game actions)
+- `backend/src/socket/` - Socket.io event handlers and real-time communication
+- `frontend/src/screens/` - React Native game screens and navigation
+- `frontend/src/services/` - API client and WebSocket integration
+- `shared/types/` - Shared TypeScript interfaces for API contracts
 
-interface Player {
-  id: string;
-  userId: string; // Supabase auth.users(id)
-  displayName: string;
-  email?: string;
-  avatar?: string;
-  hand: Card[];
-  penaltyPile: { [CreatureType]: Card[] };
-  isConnected: boolean;
-}
+### Development Commands
+- **Backend**: `cd backend && npm run dev` (Hono server on port 3000)
+- **Frontend**: `cd frontend && npx expo start` (React Native development)
+- **Database**: Use MCP tools for migrations and SQL operations
+- **Testing**: `npm run test` (Jest for backend, Detox for frontend)
+- **Linting**: `npm run lint` (ESLint for both backend and frontend)
+- **Type Check**: `npm run typecheck` (TypeScript validation)
 
-interface Round {
-  cardInPlay: Card;
-  claim: CreatureType; // May be false
-  response?: 'believe' | 'disbelieve' | 'pass_back';
-}
-```
+### Recent Technical Decisions
+- **Mobile-First**: iOS/Android only, eliminated web complexity
+- **Server-Authoritative Model**: All game logic in Hono backend for fair play
+- **Simplified Database**: Server-only RLS policies, no direct client access
+- **Cloud-Native Deployment**: Docker + Cloud Run for horizontal scaling
+- **Real-Time Architecture**: Socket.io + Redis for 1000+ concurrent players
+- **Modern Stack**: Hono for performance, Expo for mobile development efficiency
 
-## Supabase Realtime
-**Database Tables**: games, game_players, game_actions, cards  
-**Realtime Channels**: game-specific subscriptions with Row Level Security  
-**Operations**: INSERT/UPDATE triggers automatic client notifications
+### Database Schema (Server-Authoritative)
+- **profiles**: Enhanced with mobile preferences (sound, notifications, theme)
+- **game_rooms**: Server-managed multiplayer rooms (2-6 players)
+- **game_sessions**: Active game state for Socket.io recovery
+- **room_participants**: Player membership with roles and connection status
+- **server_events**: Comprehensive audit trail for all game actions
 
-## Authentication Pattern
-```typescript
-// Traditional OAuth + Email authentication
-const handleAppleSignIn = async () => {
-  const credential = await AppleAuthentication.signInAsync({
-    requestedScopes: [
-      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-      AppleAuthentication.AppleAuthenticationScope.EMAIL,
-    ],
-  });
-  
-  const { data, error } = await supabase.auth.signInWithIdToken({
-    provider: 'apple',
-    token: credential.identityToken,
-  });
-};
+### API Architecture
+- **REST Endpoints**: Authentication, profile management, room operations
+- **Socket.io Events**: Real-time game state, player actions, connection recovery
+- **JWT Flow**: Supabase Auth → Hono validation → Socket.io authentication
+- **Rate Limiting**: API abuse prevention at gateway level
 
-const handleEmailSignIn = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-};
+### Implementation Status
+- ✅ Complete specification (48 tasks planned)
+- ✅ Database schema design with migration path
+- ✅ API contracts (REST + Socket.io events)
+- 🔄 **Current Phase**: T001-T007 (Infrastructure setup)
+- 📋 **Next Phase**: T008-T024 (TDD test suite - must fail before implementation)
 
-// RLS policies check authenticated user ID
-CREATE POLICY "Authenticated users read own records" ON players 
-FOR SELECT USING (
-  auth.uid() IS NOT NULL AND user_id = auth.uid()
-);
-```
+## Important Instructions
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 
-## State Management Pattern
-```typescript
-const useGameStore = create<GameStore>((set, get) => ({
-  gameState: null,
-  connectionStatus: 'connected',
-  
-  // Optimistic updates for responsive UX
-  playCard: async (cardId, claim, targetPlayer) => {
-    // Update UI immediately
-    set(state => ({ 
-      gameState: updateGameStateOptimistically(state.gameState, action) 
-    }));
-    
-    // Insert to database (triggers realtime update)
-    await supabase.from('game_actions').insert({
-      game_id: get().gameState.id,
-      action_type: 'play_card',
-      action_data: { cardId, claim, targetPlayerId: targetPlayer }
-    });
-  }
-}));
-```
-
-## Development Commands
-```bash
-# Mobile App Development
-npx expo start              # Start Expo dev server
-npx expo start --ios        # iOS Simulator
-npx expo start --android    # Android Emulator
-npx expo start --web        # Web browser
-npx expo start --clear      # Clear cache and start
-
-# Database (Supabase Cloud)
-# Apply migrations via Supabase Dashboard: https://supabase.com/dashboard
-# No local Supabase setup required - connects directly to cloud
-
-# Code Quality
-npm run test                # Run component tests (79+ tests passing)
-npm run test:watch          # Run tests in watch mode
-npm run lint                # ESLint + TypeScript checks
-npm run lint:fix            # Fix ESLint issues automatically
-npm run typecheck           # TypeScript type checking
-```
-
-## Testing Strategy
-- **Contract Tests**: Database schema validation, RLS policy testing with Supabase Cloud
-- **Integration Tests**: Full game flow with Supabase Cloud API
-- **Component Tests**: React Native components with Testing Library (79+ tests implemented)
-  - Card, Hand, GameBoard components fully tested
-  - React Native Reanimated mocking for animation testing
-  - TouchableOpacity interaction testing
-- **Unit Tests**: Game logic, utility functions, and service layer
-- **E2E Tests**: Complete user journeys across multiple devices
-- **Database Testing**: Uses Supabase Cloud test data, not local instance
-- **Performance Tests**: Frame rate monitoring and memory usage validation
-
-## Performance Requirements
-- <100ms card action response time
-- <50ms Supabase realtime event delivery  
-- 60fps animations (card dealing, playing, transitions)
-- <50MB mobile app memory usage
-- Support 1k concurrent games
-
-## Common Debugging
-1. **Supabase Issues**: Check cloud connection status, monitor realtime subscriptions via Supabase Dashboard, verify RLS policies
-2. **State Sync**: Use Zustand DevTools, check optimistic update reconciliation
-3. **Animation Performance**: Monitor FPS with built-in performance monitor, check native driver usage, profile memory
-4. **Network Resilience**: Test disconnect scenarios, verify offline AsyncStorage cache
-5. **Database Access**: Use Supabase Dashboard SQL Editor for direct database queries
-6. **Component Testing**: Use React Native Testing Library with React Native Reanimated mocks
-7. **Performance Monitoring**: Use built-in performance monitor at `src/lib/performance.ts` for real-time metrics
-8. **Offline Storage**: Check AsyncStorage cache via storage service at `src/services/storageService.ts`
-
-## Recent Changes (Last 3)
-1. 2025-09-12: **MAJOR**: Switched to Traditional Authentication (Apple/Google/Email) - secure user accounts with OAuth and email auth
-2. 2025-09-12: Updated database schema and RLS policies from device_id to user_id based access control
-3. 2025-09-12: Redesigned LoginScreen with Apple Sign-In, Google Sign-In, and email authentication forms
-
-## Next Major Milestones
-- [x] Complete TDD implementation of core game logic library
-- [x] Supabase realtime integration with database subscriptions
-- [x] Mobile UI components with Reanimated animations
-- [x] Component testing infrastructure with React Native Testing Library
-- [x] Traditional authentication system with Apple/Google/Email
-- [ ] Error boundary and error handling implementation
-- [ ] App Store build configuration for iOS and Android
-- [ ] Performance optimization and production readiness
-
-## Claude Code Specific Notes
-- Use `npx expo install` instead of `npm install` for Expo-compatible packages
-- **Supabase Cloud Connection**: Connect directly to Supabase Cloud (vwrkmlgziauzchqpxemq), no local setup required
-- **Authentication**: Traditional OAuth (Apple, Google) and Email authentication with secure user accounts
-- **RLS Security**: Policies use `auth.uid()` for authenticated user-based access control
-- Supabase debugging: Use Supabase Dashboard for realtime monitoring, check RLS policies, SQL Editor for queries
-- React Native performance: Always check `useNativeDriver: true` for animations, use built-in performance monitor
-- Zustand DevTools: Enable only in development builds
-- TypeScript strict mode enabled - handle all type errors before implementation
-- TDD implemented: 79+ component tests with React Native Testing Library
-- **Testing Mocks**: Use consistent React Native Reanimated mocks for animation testing
-- **Offline Storage**: AsyncStorage-based service with SQLite-compatible interface
-- **Performance Monitoring**: Real-time frame rate and memory tracking available
-- **Database Migrations**: Apply via Supabase Dashboard or MCP tools, not local migration files
-
----
-*Auto-updated by /plan command - Do not edit manually above this line*
-
-## Manual Context (Preserved)
-<!-- Add any manual context below this line -->
-
-## Troubleshooting Tips
-- For iOS build issues, clean derived data: `rm -rf ~/Library/Developer/Xcode/DerivedData`
-- Android builds: Ensure Java 11 and Android SDK properly configured
-- Metro bundler cache issues: `npx expo start --clear`
-- Database connection: Check PostgreSQL is running and credentials in .env match
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
