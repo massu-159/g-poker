@@ -26,7 +26,7 @@ export interface AuthState {
 interface AuthContextType {
   authState: AuthState;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signUp: (email: string, password: string, displayName?: string) => Promise<{ success: boolean; error?: string }>;
+  signUp: (email: string, password: string, displayName: string, username: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<{ success: boolean; error?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   refreshSession: () => Promise<void>;
@@ -168,17 +168,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   /**
-   * Sign up with email, password, and optional display name
+   * Sign up with email, password, display name, and username
    */
   const signUp = async (
     email: string,
     password: string,
-    displayName?: string
+    displayName: string,
+    username: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       console.log('[Auth] Signing up:', email);
 
-      const response = await apiClient.register(email, password, displayName);
+      const response = await apiClient.register(email, password, displayName, username);
 
       if (response.success && response.data) {
         setAuthState({

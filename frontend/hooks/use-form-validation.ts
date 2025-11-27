@@ -61,6 +61,32 @@ export function validateDisplayName(displayName: string): ValidationResult {
 }
 
 /**
+ * Validates username (3-30 characters, alphanumeric and underscores only)
+ */
+export function validateUsername(username: string): ValidationResult {
+  if (!username.trim()) {
+    return { isValid: false, error: 'Username is required' };
+  }
+
+  const trimmed = username.trim();
+
+  if (trimmed.length < 3) {
+    return { isValid: false, error: 'Username must be at least 3 characters long' };
+  }
+
+  if (trimmed.length > 30) {
+    return { isValid: false, error: 'Username must be no more than 30 characters long' };
+  }
+
+  // Check for valid characters (alphanumeric and underscores only)
+  if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) {
+    return { isValid: false, error: 'Username can only contain letters, numbers, and underscores' };
+  }
+
+  return { isValid: true, error: null };
+}
+
+/**
  * Validates password strength
  */
 export function validatePassword(password: string): PasswordStrength {

@@ -25,6 +25,7 @@ import {
   usePasswordValidation,
   validateEmail,
   validateDisplayName,
+  validateUsername,
   validatePasswordConfirmation,
 } from '@/hooks/use-form-validation';
 
@@ -32,6 +33,7 @@ export function RegisterScreen() {
   const { signUp } = useAuth();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -48,6 +50,7 @@ export function RegisterScreen() {
   // Form validation
   const emailValidation = useFieldValidation(email, validateEmail, 300);
   const displayNameValidation = useFieldValidation(displayName, validateDisplayName, 300);
+  const usernameValidation = useFieldValidation(username, validateUsername, 300);
   const passwordValidation = usePasswordValidation(password, 300);
   const confirmPasswordValidation = useFieldValidation(
     confirmPassword,
@@ -91,12 +94,14 @@ export function RegisterScreen() {
     // Mark fields as touched for validation
     emailValidation.markTouched();
     displayNameValidation.markTouched();
+    usernameValidation.markTouched();
     passwordValidation.markTouched();
     confirmPasswordValidation.markTouched();
 
     // Validate form
     const emailResult = validateEmail(email);
     const displayNameResult = validateDisplayName(displayName);
+    const usernameResult = validateUsername(username);
     const passwordResult = passwordValidation.strength;
     const confirmPasswordResult = validatePasswordConfirmation(password, confirmPassword);
 
@@ -107,6 +112,11 @@ export function RegisterScreen() {
 
     if (!displayNameResult.isValid) {
       Alert.alert('Validation Error', displayNameResult.error);
+      return;
+    }
+
+    if (!usernameResult.isValid) {
+      Alert.alert('Validation Error', usernameResult.error);
       return;
     }
 
@@ -128,7 +138,7 @@ export function RegisterScreen() {
     setIsLoading(true);
 
     try {
-      const result = await signUp(email.trim(), password, displayName.trim());
+      const result = await signUp(email.trim(), password, displayName.trim(), username.trim());
 
       if (result.success) {
         Alert.alert(
@@ -166,11 +176,13 @@ export function RegisterScreen() {
   const isFormValid =
     emailValidation.validation.isValid &&
     displayNameValidation.validation.isValid &&
+    usernameValidation.validation.isValid &&
     passwordValidation.strength.isValid &&
     confirmPasswordValidation.validation.isValid &&
     acceptedTerms &&
     email &&
     displayName &&
+    username &&
     password &&
     confirmPassword;
 
@@ -248,6 +260,34 @@ export function RegisterScreen() {
               {displayNameValidation.touched && displayNameValidation.validation.error && (
                 <ThemedText style={styles.errorText}>
                   {displayNameValidation.validation.error}
+                </ThemedText>
+              )}
+            </View>
+
+            {/* Username Input */}
+            <View style={styles.inputContainer}>
+              <ThemedText style={styles.label}>Username</ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    borderColor: usernameValidation.touched && !usernameValidation.validation.isValid ? '#e74c3c' : iconColor,
+                    color: textColor,
+                  }
+                ]}
+                value={username}
+                onChangeText={setUsername}
+                onBlur={usernameValidation.markTouched}
+                placeholder="Choose a username (3-30 characters, alphanumeric + _)"
+                placeholderTextColor={iconColor}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isLoading}
+                maxLength={30}
+              />
+              {usernameValidation.touched && usernameValidation.validation.error && (
+                <ThemedText style={styles.errorText}>
+                  {usernameValidation.validation.error}
                 </ThemedText>
               )}
             </View>

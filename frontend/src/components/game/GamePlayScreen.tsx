@@ -42,6 +42,7 @@ interface GameState {
   player2: PlayerHand | null;
   claimedCard: CardType | null;
   currentClaim: CreatureType | null;
+  currentRoundId: string | null;
   isLoading: boolean;
   myPlayerId: string | null;
   gamePhase: 'waiting' | 'playing' | 'guessing' | 'round-end' | 'game-end';
@@ -59,6 +60,7 @@ export function GamePlayScreen({ gameId }: GamePlayScreenProps) {
     player2: null,
     claimedCard: null,
     currentClaim: null,
+    currentRoundId: null,
     isLoading: true,
     myPlayerId: authState.user?.id || null,
     gamePhase: 'waiting',
@@ -112,8 +114,8 @@ export function GamePlayScreen({ gameId }: GamePlayScreenProps) {
               ? gameState.player2?.cards[0]?.id
               : gameState.player1?.cards[0]?.id;
 
-            // Emit claim_card event via Socket.io
-            socketClient.claimCard(gameId, data.creatureType, opponentPlayerId || '');
+            // Emit claim_card event via Socket.io (updated signature with cardId)
+            socketClient.claimCard(gameId, data.cardId, data.creatureType, opponentPlayerId || '');
 
             setGameState(prev => ({
               ...prev,
@@ -125,8 +127,12 @@ export function GamePlayScreen({ gameId }: GamePlayScreenProps) {
           break;
 
         case 'guess':
-          // Emit respond_to_claim event
-          socketClient.respondToClaim(gameId, data.isTrue ? 'truth' : 'lie');
+          // Emit respond_to_claim event (requires roundId from state)
+          if (!gameState.currentRoundId) {
+            Alert.alert('Error', 'No active round to respond to');
+            return;
+          }
+          socketClient.respondToClaim(gameId, gameState.currentRoundId, data.believeClaim);
 
           setGameState(prev => ({
             ...prev,
@@ -136,8 +142,16 @@ export function GamePlayScreen({ gameId }: GamePlayScreenProps) {
           break;
 
         case 'pass':
-          // Emit pass_card event
-          socketClient.passCard(gameId);
+          // Emit pass_card event (requires roundId, targetPlayerId, and newClaim)
+          if (!gameState.currentRoundId) {
+            Alert.alert('Error', 'No active round to pass');
+            return;
+          }
+          if (!data.targetPlayerId || !data.newClaim) {
+            Alert.alert('Error', 'Missing target player or new claim for pass');
+            return;
+          }
+          socketClient.passCard(gameId, gameState.currentRoundId, data.targetPlayerId, data.newClaim);
 
           setGameState(prev => ({
             ...prev,
@@ -169,6 +183,7 @@ export function GamePlayScreen({ gameId }: GamePlayScreenProps) {
           claimedCard: data.card,
           currentClaim: data.claimed_creature as CreatureType,
           currentPlayer: data.target_player_id,
+          currentRoundId: data.round_id,
           gamePhase: 'guessing',
           actionTimer: 30,
         }));
@@ -281,20 +296,62 @@ export function GamePlayScreen({ gameId }: GamePlayScreenProps) {
       }
     });
 
+    // Game action error event
+    const unsubscribeGameActionError = socketClient.on('game_action_error', (data) => {
+      console.error('[GamePlayScreen] Game action error:', data);
+      Alert.alert('Game Error', data.message || 'An error occurred during game action');
+    });
+
+    // Turn timeout event
+    const unsubscribeTurnTimeout = socketClient.on('turn_timeout', (data) => {
+      console.log('[GamePlayScreen] Turn timeout:', data);
+      if (data.room_id === gameId) {
+        const isMyTimeout = data.timed_out_player_id === gameState.myPlayerId;
+        const message = isMyTimeout
+          ? `Your turn timed out! ${data.auto_action_taken.description}`
+          : `Opponent's turn timed out. ${data.auto_action_taken.description}`;
+
+        Alert.alert('Turn Timeout', message);
+      }
+    });
+
+    // Participant status update event (connection status)
+    const unsubscribeParticipantStatus = socketClient.on('participant_status_update', (data) => {
+      console.log('[GamePlayScreen] Participant status update:', data);
+      if (data.room_id === gameId) {
+        // Update connection status for players
+        if (data.participant_id === gameState.myPlayerId) {
+          setGameState(prev => ({
+            ...prev,
+            connectionStatus: data.connection_status
+          }));
+        }
+      }
+    });
+
+    // Connection error event
+    const unsubscribeConnectionError = socketClient.on('connection_error', (data) => {
+      console.error('[GamePlayScreen] Connection error:', data);
+      Alert.alert('Connection Error', data.message || 'Connection error occurred');
+      if (data.retry_after_seconds) {
+        setTimeout(() => {
+          console.log('[GamePlayScreen] Retrying connection...');
+          socketClient.connect();
+        }, data.retry_after_seconds * 1000);
+      }
+    });
+
     // Socket connection status changes
     const unsubscribeConnected = socketClient.on('connect', () => {
       console.log('[GamePlayScreen] Socket connected');
       setGameState(prev => ({ ...prev, connectionStatus: 'connected' }));
+      // Request latest game state on reconnection
+      socketClient.getGameState(gameId);
     });
 
     const unsubscribeDisconnected = socketClient.on('disconnect', () => {
       console.log('[GamePlayScreen] Socket disconnected');
       setGameState(prev => ({ ...prev, connectionStatus: 'disconnected' }));
-    });
-
-    const unsubscribeReconnecting = socketClient.on('reconnecting', () => {
-      console.log('[GamePlayScreen] Socket reconnecting');
-      setGameState(prev => ({ ...prev, connectionStatus: 'reconnecting' }));
     });
 
     return () => {
@@ -304,9 +361,12 @@ export function GamePlayScreen({ gameId }: GamePlayScreenProps) {
       unsubscribeGameStateUpdate();
       unsubscribeRoundCompleted();
       unsubscribeGameEnded();
+      unsubscribeGameActionError();
+      unsubscribeTurnTimeout();
+      unsubscribeParticipantStatus();
+      unsubscribeConnectionError();
       unsubscribeConnected();
       unsubscribeDisconnected();
-      unsubscribeReconnecting();
     };
   }, [gameId, gameState.myPlayerId]);
 

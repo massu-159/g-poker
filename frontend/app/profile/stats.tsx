@@ -18,13 +18,24 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { profileService } from '@/services/profileService';
-import type { ProfileStats } from '@/services/profileService';
+import { profileService } from '@/src/services/profile/profileService';
+import type { ProfileStats } from '@/src/services/profile/profileService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
+interface ExtendedStats extends ProfileStats {
+  gamesPlayed?: number;
+  gamesWon?: number;
+  gamesLost?: number;
+  winRate?: number;
+  averageGameDuration?: number;
+  longestWinStreak?: number;
+  totalPlayTime?: number;
+  favoriteCreatureType?: string;
+}
+
 export default function ProfileStatsScreen() {
-  const [stats, setStats] = useState<ProfileStats | null>(null);
+  const [stats, setStats] = useState<ExtendedStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -42,10 +53,22 @@ export default function ProfileStatsScreen() {
   const loadStats = async () => {
     try {
       setIsLoading(true);
-      const result = await profileService.getUserStatistics();
+      const result = await profileService.getProfileStats(undefined, 30);
 
-      if (result.stats) {
-        setStats(result.stats);
+      if (result.success && result.data) {
+        // Map API response to local stats format
+        const apiStats = result.data;
+        setStats({
+          games_played: apiStats.games_played,
+          games_won: apiStats.games_won,
+          win_rate: apiStats.win_rate,
+          period_days: apiStats.period_days,
+          // Calculate games lost
+          gamesPlayed: apiStats.games_played,
+          gamesWon: apiStats.games_won,
+          gamesLost: apiStats.games_played - apiStats.games_won,
+          winRate: apiStats.win_rate,
+        });
       } else if (result.error) {
         console.error('Failed to load stats:', result.error);
       }

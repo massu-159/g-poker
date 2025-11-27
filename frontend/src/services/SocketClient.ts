@@ -117,6 +117,7 @@ export interface ParticipantLeftEvent {
 // Game Events
 export interface ClaimCardEvent {
   room_id: string;
+  card_id: string;
   claimed_creature: string;
   target_player_id: string;
 }
@@ -227,11 +228,27 @@ export interface GameActionErrorEvent {
 }
 
 // Connection Events
-export interface ConnectionStatusEvent {
+export interface ParticipantStatusUpdateEvent {
   room_id: string;
-  player_id: string;
+  participant_id: string;
   connection_status: 'connected' | 'disconnected' | 'reconnecting';
+  ready_status?: boolean;
+}
+
+export interface TurnTimeoutEvent {
+  room_id: string;
+  timed_out_player_id: string;
+  auto_action_taken: {
+    type: 'auto_believe' | 'auto_pass' | 'forfeit';
+    description: string;
+  };
   timestamp: string;
+}
+
+export interface ConnectionErrorEvent {
+  error_code: 'RATE_LIMITED' | 'SERVER_ERROR' | 'INVALID_ROOM';
+  message: string;
+  retry_after_seconds?: number;
 }
 
 /**
@@ -262,9 +279,11 @@ export interface SocketEventHandlers {
   round_completed?: EventHandler<RoundCompletedEvent>;
   game_ended?: EventHandler<GameEndedEvent>;
   game_action_error?: EventHandler<GameActionErrorEvent>;
+  turn_timeout?: EventHandler<TurnTimeoutEvent>;
 
   // Connection
-  connection_status?: EventHandler<ConnectionStatusEvent>;
+  participant_status_update?: EventHandler<ParticipantStatusUpdateEvent>;
+  connection_error?: EventHandler<ConnectionErrorEvent>;
 
   // Socket.io lifecycle
   connect?: EventHandler<void>;
@@ -452,10 +471,20 @@ export class SocketIoClient {
       this.emitToHandlers('game_action_error', data);
     });
 
+    this.socket.on('turn_timeout', (data: TurnTimeoutEvent) => {
+      console.log('[SocketClient] Turn timeout:', data.timed_out_player_id);
+      this.emitToHandlers('turn_timeout', data);
+    });
+
     // Connection status events
-    this.socket.on('connection_status', (data: ConnectionStatusEvent) => {
-      console.log('[SocketClient] Connection status:', data);
-      this.emitToHandlers('connection_status', data);
+    this.socket.on('participant_status_update', (data: ParticipantStatusUpdateEvent) => {
+      console.log('[SocketClient] Participant status update:', data);
+      this.emitToHandlers('participant_status_update', data);
+    });
+
+    this.socket.on('connection_error', (data: ConnectionErrorEvent) => {
+      console.error('[SocketClient] Connection error:', data);
+      this.emitToHandlers('connection_error', data);
     });
   }
 
@@ -575,14 +604,15 @@ export class SocketIoClient {
   /**
    * Send claim card action
    */
-  claimCard(roomId: string, claimedCreature: string, targetPlayerId: string) {
+  claimCard(roomId: string, cardId: string, claimedCreature: string, targetPlayerId: string) {
     const payload: ClaimCardEvent = {
       room_id: roomId,
+      card_id: cardId,
       claimed_creature: claimedCreature,
       target_player_id: targetPlayerId,
     };
 
-    console.log('[SocketClient] Claiming card:', claimedCreature);
+    console.log('[SocketClient] Claiming card:', claimedCreature, 'ID:', cardId);
     this.socket?.emit('claim_card', payload);
   }
 
@@ -613,6 +643,20 @@ export class SocketIoClient {
 
     console.log('[SocketClient] Passing card to:', targetPlayerId);
     this.socket?.emit('pass_card', payload);
+  }
+
+  /**
+   * Request current game state from server
+   */
+  getGameState(roomId: string) {
+    if (!this.isAuthenticated) {
+      console.error('[SocketClient] Cannot get game state - not authenticated');
+      return;
+    }
+
+    const payload = { room_id: roomId };
+    console.log('[SocketClient] Requesting game state for room:', roomId);
+    this.socket?.emit('get_game_state', payload);
   }
 
   /**

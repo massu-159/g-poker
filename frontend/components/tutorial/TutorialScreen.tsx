@@ -16,7 +16,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useAuth } from '@/src/hooks/useAuth';
-import { authManager } from '@/services/supabase';
+import { profileService } from '@/src/services/profile/profileService';
 
 interface TutorialScreenProps {
   isModal?: boolean;
@@ -83,15 +83,15 @@ export function TutorialScreen({
     }
 
     try {
-      // Update tutorial completion status in database
-      const result = await authManager.updateTutorialCompleted(authState.user.id);
+      // Mark tutorial as completed via API
+      const result = await profileService.markTutorialComplete();
 
       if (!result.success) {
         Alert.alert('Error', result.error || 'Failed to save tutorial completion');
         return;
       }
 
-      console.log('Tutorial completed for user:', authState.user.id);
+      console.log('[Tutorial] Tutorial completed for user:', authState.user.id);
 
       if (isModal && onComplete) {
         // Modal mode: call completion callback

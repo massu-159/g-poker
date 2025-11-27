@@ -3,13 +3,14 @@
  * Display user's game history and match details
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -17,6 +18,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { profileService } from '@/src/services/profile/profileService';
 
 interface GameHistoryItem {
   id: string;
@@ -29,7 +31,12 @@ interface GameHistoryItem {
 }
 
 export default function ProfileHistoryScreen() {
+  const [gameHistory, setGameHistory] = useState<GameHistoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [filterType, setFilterType] = useState<'all' | 'won' | 'lost'>('all');
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -38,60 +45,59 @@ export default function ProfileHistoryScreen() {
   const iconColor = useThemeColor({}, 'icon');
   const cardBackground = useThemeColor({ light: '#f8f9fa', dark: '#1a1a1a' }, 'background');
 
-  const mockGameHistory: GameHistoryItem[] = [
-    {
-      id: '1',
-      opponent: 'Alice',
-      result: 'won',
-      duration: '12m 34s',
-      date: '2025-09-23',
-      rounds: 8,
-      winMethod: 'Opponent got 3 cockroaches',
-    },
-    {
-      id: '2',
-      opponent: 'Bob',
-      result: 'lost',
-      duration: '18m 45s',
-      date: '2025-09-22',
-      rounds: 12,
-      winMethod: 'Got 3 mice',
-    },
-    {
-      id: '3',
-      opponent: 'Charlie',
-      result: 'won',
-      duration: '9m 12s',
-      date: '2025-09-22',
-      rounds: 6,
-      winMethod: 'Opponent got 3 bats',
-    },
-    {
-      id: '4',
-      opponent: 'Diana',
-      result: 'lost',
-      duration: '15m 28s',
-      date: '2025-09-21',
-      rounds: 10,
-      winMethod: 'Got 3 frogs',
-    },
-    {
-      id: '5',
-      opponent: 'Eve',
-      result: 'won',
-      duration: '14m 07s',
-      date: '2025-09-21',
-      rounds: 9,
-      winMethod: 'Opponent got 3 cockroaches',
-    },
-  ];
+  useEffect(() => {
+    loadGameHistory();
+  }, [currentPage]);
+
+  const loadGameHistory = async () => {
+    try {
+      setIsLoading(true);
+      const result = await profileService.getUserGames(currentPage, 20);
+
+      if (result.success && result.data) {
+        // Transform API response to local format
+        const transformedGames: GameHistoryItem[] = (result.data.games || []).map((game: any) => ({
+          id: game.id || game.gameId,
+          opponent: game.opponentName || 'Unknown Player',
+          result: game.result === 'win' || game.won ? 'won' : 'lost',
+          duration: formatDuration(game.duration || 0),
+          date: game.completedAt || game.created_at || new Date().toISOString(),
+          rounds: game.roundsPlayed || game.rounds || 0,
+          winMethod: game.winMethod || game.end_reason,
+        }));
+
+        setGameHistory(transformedGames);
+        setTotalPages(result.data.pagination?.totalPages || 1);
+      } else {
+        console.error('Failed to load game history:', result.error);
+        setGameHistory([]);
+      }
+    } catch (error) {
+      console.error('Failed to load game history:', error);
+      setGameHistory([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    // Simulate loading
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    setCurrentPage(1);
+    await loadGameHistory();
+    setRefreshing(false);
+  };
+
+  const handleLoadMore = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const formatDuration = (seconds: number): string => {
+    if (!seconds) return '0m 0s';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
   };
 
   const GameHistoryCard = ({ game }: { game: GameHistoryItem }) => (
@@ -148,9 +154,13 @@ export default function ProfileHistoryScreen() {
     </ThemedView>
   );
 
+  const filteredHistory = filterType === 'all'
+    ? gameHistory
+    : gameHistory.filter(g => g.result === filterType);
+
   const StatSummary = () => {
-    const totalGames = mockGameHistory.length;
-    const wonGames = mockGameHistory.filter(g => g.result === 'won').length;
+    const totalGames = gameHistory.length;
+    const wonGames = gameHistory.filter(g => g.result === 'won').length;
     const winRate = totalGames > 0 ? Math.round((wonGames / totalGames) * 100) : 0;
 
     return (
@@ -217,16 +227,43 @@ export default function ProfileHistoryScreen() {
         {/* Filter Options */}
         <ThemedView style={[styles.filterSection, { backgroundColor: cardBackground }]}>
           <View style={styles.filterButtons}>
-            <TouchableOpacity style={[styles.filterButton, { backgroundColor: tintColor }]}>
-              <ThemedText style={styles.filterButtonTextActive}>All Games</ThemedText>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                filterType === 'all' && { backgroundColor: tintColor },
+                filterType !== 'all' && { borderColor: iconColor }
+              ]}
+              onPress={() => setFilterType('all')}
+            >
+              <ThemedText style={filterType === 'all' ? styles.filterButtonTextActive : [styles.filterButtonText, { color: textColor }]}>
+                All Games
+              </ThemedText>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.filterButton, { borderColor: iconColor }]}>
-              <ThemedText style={[styles.filterButtonText, { color: textColor }]}>Won</ThemedText>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                filterType === 'won' && { backgroundColor: tintColor },
+                filterType !== 'won' && { borderColor: iconColor }
+              ]}
+              onPress={() => setFilterType('won')}
+            >
+              <ThemedText style={filterType === 'won' ? styles.filterButtonTextActive : [styles.filterButtonText, { color: textColor }]}>
+                Won
+              </ThemedText>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.filterButton, { borderColor: iconColor }]}>
-              <ThemedText style={[styles.filterButtonText, { color: textColor }]}>Lost</ThemedText>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                filterType === 'lost' && { backgroundColor: tintColor },
+                filterType !== 'lost' && { borderColor: iconColor }
+              ]}
+              onPress={() => setFilterType('lost')}
+            >
+              <ThemedText style={filterType === 'lost' ? styles.filterButtonTextActive : [styles.filterButtonText, { color: textColor }]}>
+                Lost
+              </ThemedText>
             </TouchableOpacity>
           </View>
         </ThemedView>
@@ -237,8 +274,13 @@ export default function ProfileHistoryScreen() {
             Recent Games
           </ThemedText>
 
-          {mockGameHistory.length > 0 ? (
-            mockGameHistory.map((game) => (
+          {isLoading && currentPage === 1 ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={tintColor} />
+              <ThemedText style={styles.loadingText}>Loading games...</ThemedText>
+            </View>
+          ) : filteredHistory.length > 0 ? (
+            filteredHistory.map((game) => (
               <GameHistoryCard key={game.id} game={game} />
             ))
           ) : (
@@ -261,17 +303,20 @@ export default function ProfileHistoryScreen() {
         </ThemedView>
 
         {/* Load More */}
-        {mockGameHistory.length > 0 && (
+        {filteredHistory.length > 0 && currentPage < totalPages && (
           <ThemedView style={[styles.loadMoreSection, { backgroundColor: cardBackground }]}>
             <TouchableOpacity
               style={[styles.loadMoreButton, { borderColor: tintColor }]}
-              onPress={() => {
-                // Load more games
-              }}
+              onPress={handleLoadMore}
+              disabled={isLoading}
             >
-              <ThemedText style={[styles.loadMoreText, { color: tintColor }]}>
-                Load More Games
-              </ThemedText>
+              {isLoading ? (
+                <ActivityIndicator size="small" color={tintColor} />
+              ) : (
+                <ThemedText style={[styles.loadMoreText, { color: tintColor }]}>
+                  Load More Games
+                </ThemedText>
+              )}
             </TouchableOpacity>
           </ThemedView>
         )}
@@ -454,6 +499,15 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 14,
+    opacity: 0.7,
+    marginTop: 12,
   },
   loadMoreSection: {
     margin: 16,

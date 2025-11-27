@@ -18,11 +18,54 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { profileService } from '@/services/profileService';
-import type { UserSettings } from '@/services/profileService';
+import { profileService } from '@/src/services/profile/profileService';
+
+interface UserSettings {
+  gamePreferences: {
+    preferredTimeLimit: number;
+    allowSpectators: boolean;
+    autoJoinGames: boolean;
+    soundEnabled: boolean;
+    hapticFeedback: boolean;
+    animationsEnabled: boolean;
+  };
+  notifications: {
+    gameInvites: boolean;
+    turnReminders: boolean;
+    gameResults: boolean;
+    achievements: boolean;
+    marketing: boolean;
+  };
+  privacy: {
+    showOnlineStatus: boolean;
+    allowFriendRequests: boolean;
+    showStatistics: boolean;
+  };
+}
 
 export default function ProfileSettingsScreen() {
-  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [settings, setSettings] = useState<UserSettings>({
+    gamePreferences: {
+      preferredTimeLimit: 30,
+      allowSpectators: false,
+      autoJoinGames: false,
+      soundEnabled: true,
+      hapticFeedback: true,
+      animationsEnabled: true,
+    },
+    notifications: {
+      gameInvites: true,
+      turnReminders: true,
+      gameResults: true,
+      achievements: true,
+      marketing: false,
+    },
+    privacy: {
+      showOnlineStatus: true,
+      allowFriendRequests: true,
+      showStatistics: true,
+    },
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -40,8 +83,13 @@ export default function ProfileSettingsScreen() {
   const loadSettings = async () => {
     try {
       setIsLoading(true);
-      const result = await profileService.getUserSettings();
-      setSettings(result.settings);
+      // Load current user profile to get preferences
+      const result = await profileService.getProfile();
+
+      if (result.success && result.data) {
+        // Settings are loaded from user profile, but we'll use local state
+        console.log('[Settings] Profile loaded:', result.data);
+      }
     } catch (error) {
       console.error('Failed to load settings:', error);
     } finally {
@@ -50,11 +98,21 @@ export default function ProfileSettingsScreen() {
   };
 
   const saveSettings = async () => {
-    if (!settings) return;
-
     try {
       setIsSaving(true);
-      const result = await profileService.updateSettings(settings);
+
+      // Map local settings to API preferences format
+      const preferences = {
+        soundEnabled: settings.gamePreferences.soundEnabled,
+        soundVolume: settings.gamePreferences.soundEnabled ? 0.8 : 0,
+        mobileVibrationEnabled: settings.gamePreferences.hapticFeedback,
+        mobileNotificationsEnabled: settings.notifications.gameInvites,
+        privacyShowOnlineStatus: settings.privacy.showOnlineStatus,
+        privacyShowGameStats: settings.privacy.showStatistics,
+        privacyAllowSpectators: settings.gamePreferences.allowSpectators,
+      };
+
+      const result = await profileService.updatePreferences(preferences);
 
       if (result.success) {
         Alert.alert('Success', 'Settings saved successfully');
@@ -70,36 +128,30 @@ export default function ProfileSettingsScreen() {
   };
 
   const updateGamePreference = (key: keyof UserSettings['gamePreferences'], value: any) => {
-    if (!settings) return;
-
     setSettings(prev => ({
-      ...prev!,
+      ...prev,
       gamePreferences: {
-        ...prev!.gamePreferences,
+        ...prev.gamePreferences,
         [key]: value,
       },
     }));
   };
 
   const updateNotificationSetting = (key: keyof UserSettings['notifications'], value: boolean) => {
-    if (!settings) return;
-
     setSettings(prev => ({
-      ...prev!,
+      ...prev,
       notifications: {
-        ...prev!.notifications,
+        ...prev.notifications,
         [key]: value,
       },
     }));
   };
 
   const updatePrivacySetting = (key: keyof UserSettings['privacy'], value: boolean) => {
-    if (!settings) return;
-
     setSettings(prev => ({
-      ...prev!,
+      ...prev,
       privacy: {
-        ...prev!.privacy,
+        ...prev.privacy,
         [key]: value,
       },
     }));
@@ -208,16 +260,19 @@ export default function ProfileSettingsScreen() {
             Game Preferences
           </ThemedText>
 
-          <SettingItem
-            icon="clock.fill"
-            title="Preferred Time Limit"
-            subtitle="Default time limit for new games"
-          >
+          <View style={styles.settingItemFull}>
+            <View style={styles.settingLeft}>
+              <IconSymbol name="clock.fill" size={24} color={iconColor} />
+              <View style={styles.settingText}>
+                <ThemedText style={styles.settingTitle}>Preferred Time Limit</ThemedText>
+                <ThemedText style={styles.settingSubtitle}>Default time limit for new games</ThemedText>
+              </View>
+            </View>
             <TimeSelector
-              value={settings?.gamePreferences.preferredTimeLimit || 30}
+              value={settings.gamePreferences.preferredTimeLimit}
               onValueChange={(value) => updateGamePreference('preferredTimeLimit', value)}
             />
-          </SettingItem>
+          </View>
 
           <SettingItem
             icon="eye.fill"
@@ -225,7 +280,7 @@ export default function ProfileSettingsScreen() {
             subtitle="Let others watch your games"
           >
             <Switch
-              value={settings?.gamePreferences.allowSpectators || false}
+              value={settings.gamePreferences.allowSpectators}
               onValueChange={(value) => updateGamePreference('allowSpectators', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -238,7 +293,7 @@ export default function ProfileSettingsScreen() {
             subtitle="Automatically join available games"
           >
             <Switch
-              value={settings?.gamePreferences.autoJoinGames || false}
+              value={settings.gamePreferences.autoJoinGames}
               onValueChange={(value) => updateGamePreference('autoJoinGames', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -258,7 +313,7 @@ export default function ProfileSettingsScreen() {
             subtitle="Play sounds during games"
           >
             <Switch
-              value={settings?.gamePreferences.soundEnabled || false}
+              value={settings.gamePreferences.soundEnabled}
               onValueChange={(value) => updateGamePreference('soundEnabled', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -271,7 +326,7 @@ export default function ProfileSettingsScreen() {
             subtitle="Vibrate on interactions"
           >
             <Switch
-              value={settings?.gamePreferences.hapticFeedback || false}
+              value={settings.gamePreferences.hapticFeedback}
               onValueChange={(value) => updateGamePreference('hapticFeedback', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -284,7 +339,7 @@ export default function ProfileSettingsScreen() {
             subtitle="Enable card animations"
           >
             <Switch
-              value={settings?.gamePreferences.animationsEnabled || false}
+              value={settings.gamePreferences.animationsEnabled}
               onValueChange={(value) => updateGamePreference('animationsEnabled', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -304,7 +359,7 @@ export default function ProfileSettingsScreen() {
             subtitle="Notifications for game invitations"
           >
             <Switch
-              value={settings?.notifications.gameInvites || false}
+              value={settings.notifications.gameInvites}
               onValueChange={(value) => updateNotificationSetting('gameInvites', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -317,7 +372,7 @@ export default function ProfileSettingsScreen() {
             subtitle="Reminders when it's your turn"
           >
             <Switch
-              value={settings?.notifications.turnReminders || false}
+              value={settings.notifications.turnReminders}
               onValueChange={(value) => updateNotificationSetting('turnReminders', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -330,7 +385,7 @@ export default function ProfileSettingsScreen() {
             subtitle="Notifications for game outcomes"
           >
             <Switch
-              value={settings?.notifications.gameResults || false}
+              value={settings.notifications.gameResults}
               onValueChange={(value) => updateNotificationSetting('gameResults', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -343,7 +398,7 @@ export default function ProfileSettingsScreen() {
             subtitle="Notifications for achievements"
           >
             <Switch
-              value={settings?.notifications.achievements || false}
+              value={settings.notifications.achievements}
               onValueChange={(value) => updateNotificationSetting('achievements', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -356,7 +411,7 @@ export default function ProfileSettingsScreen() {
             subtitle="News and promotional messages"
           >
             <Switch
-              value={settings?.notifications.marketing || false}
+              value={settings.notifications.marketing}
               onValueChange={(value) => updateNotificationSetting('marketing', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -376,7 +431,7 @@ export default function ProfileSettingsScreen() {
             subtitle="Let others see when you're online"
           >
             <Switch
-              value={settings?.privacy.showOnlineStatus || false}
+              value={settings.privacy.showOnlineStatus}
               onValueChange={(value) => updatePrivacySetting('showOnlineStatus', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -389,7 +444,7 @@ export default function ProfileSettingsScreen() {
             subtitle="Let others send you friend requests"
           >
             <Switch
-              value={settings?.privacy.allowFriendRequests || false}
+              value={settings.privacy.allowFriendRequests}
               onValueChange={(value) => updatePrivacySetting('allowFriendRequests', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -402,7 +457,7 @@ export default function ProfileSettingsScreen() {
             subtitle="Make your statistics visible to others"
           >
             <Switch
-              value={settings?.privacy.showStatistics || false}
+              value={settings.privacy.showStatistics}
               onValueChange={(value) => updatePrivacySetting('showStatistics', value)}
               trackColor={{ false: iconColor, true: tintColor }}
               thumbColor="white"
@@ -576,6 +631,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  settingItemFull: {
+    paddingVertical: 12,
+    marginBottom: 8,
   },
   timeSelector: {
     flexDirection: 'row',

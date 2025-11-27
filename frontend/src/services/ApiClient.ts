@@ -7,6 +7,36 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type {
+  ApiResponse,
+  AuthResponse,
+  AuthTokens,
+  RefreshTokenResponse,
+  LogoutResponse,
+  MeResponse,
+  FullUserProfile,
+  PublicUserProfile,
+  ProfileUpdateRequest,
+  PreferencesUpdateRequest,
+  UserStatistics,
+  GameHistoryResponse,
+  TutorialCompleteResponse,
+  CreateRoomRequest,
+  CreateRoomResponse,
+  RoomListResponse,
+  JoinRoomRequest,
+  JoinRoomResponse,
+  StartGameResponse,
+  RoomDetailsResponse,
+  LeaveRoomResponse,
+  ClaimCardRequest,
+  ClaimCardResponse,
+  RespondToClaimRequest,
+  RespondToClaimResponse,
+  PassCardRequest,
+  PassCardResponse,
+  GameStateResponse,
+} from '@/types/api';
 
 
 // API Configuration
@@ -18,58 +48,16 @@ const STORAGE_KEY_ACCESS_TOKEN = 'auth_access_token';
 const STORAGE_KEY_REFRESH_TOKEN = 'auth_refresh_token';
 const STORAGE_KEY_USER_ID = 'auth_user_id';
 
-/**
- * API Client Response Types
- */
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
-}
+// Re-export commonly used types for convenience
+export type { ApiResponse, FullUserProfile, PublicUserProfile } from '@/types/api';
 
-export interface AuthTokens {
+/**
+ * Internal storage format for auth tokens
+ */
+interface StoredAuthTokens {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
-}
-
-export interface UserProfile {
-  id: string;
-  email: string;
-  displayName: string;
-  avatarUrl?: string;
-  gamesPlayed: number;
-  gamesWon: number;
-  winRate: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Room {
-  id: string;
-  creatorId: string;
-  status: 'waiting' | 'in_progress' | 'completed';
-  maxPlayers: number;
-  currentPlayerCount: number;
-  settings: {
-    timeLimitSeconds: number;
-  };
-  createdAt: string;
-  participants?: RoomParticipant[];
-}
-
-export interface RoomParticipant {
-  playerId: string;
-  displayName: string;
-  position: number;
-  status: 'joined' | 'playing' | 'disconnected';
-  joinedAt: string;
-}
-
-export interface GameAction {
-  type: 'claim_card' | 'respond_to_claim' | 'pass_card';
-  payload: any;
 }
 
 /**
@@ -114,7 +102,7 @@ export class HonoApiClient {
   /**
    * Save tokens to AsyncStorage
    */
-  private async saveTokensToStorage(tokens: AuthTokens, userId: string) {
+  private async saveTokensToStorage(tokens: StoredAuthTokens, userId: string) {
     try {
       await Promise.all([
         AsyncStorage.setItem(STORAGE_KEY_ACCESS_TOKEN, tokens.accessToken),
@@ -325,8 +313,8 @@ export class HonoApiClient {
   /**
    * Login with email and password
    */
-  async login(email: string, password: string): Promise<ApiResponse<{ user: UserProfile; tokens: AuthTokens }>> {
-    const response = await this.request<{ user: UserProfile; tokens: AuthTokens }>(
+  async login(email: string, password: string): Promise<ApiResponse<AuthResponse>> {
+    const response = await this.request<AuthResponse>(
       'POST',
       '/api/auth/login',
       { email, password },
@@ -334,7 +322,13 @@ export class HonoApiClient {
     );
 
     if (response.success && response.data) {
-      await this.saveTokensToStorage(response.data.tokens, response.data.user.id);
+      // Convert API tokens to storage format
+      const storedTokens: StoredAuthTokens = {
+        accessToken: response.data.tokens.access_token,
+        refreshToken: response.data.tokens.refresh_token,
+        expiresIn: response.data.tokens.expires_in,
+      };
+      await this.saveTokensToStorage(storedTokens, response.data.user.id);
     }
 
     return response;
@@ -343,16 +337,22 @@ export class HonoApiClient {
   /**
    * Register new user
    */
-  async register(email: string, password: string, displayName?: string): Promise<ApiResponse<{ user: UserProfile; tokens: AuthTokens }>> {
-    const response = await this.request<{ user: UserProfile; tokens: AuthTokens }>(
+  async register(email: string, password: string, displayName: string, username: string): Promise<ApiResponse<AuthResponse>> {
+    const response = await this.request<AuthResponse>(
       'POST',
       '/api/auth/register',
-      { email, password, displayName },
+      { email, password, displayName, username },
       false
     );
 
     if (response.success && response.data) {
-      await this.saveTokensToStorage(response.data.tokens, response.data.user.id);
+      // Convert API tokens to storage format
+      const storedTokens: StoredAuthTokens = {
+        accessToken: response.data.tokens.access_token,
+        refreshToken: response.data.tokens.refresh_token,
+        expiresIn: response.data.tokens.expires_in,
+      };
+      await this.saveTokensToStorage(storedTokens, response.data.user.id);
     }
 
     return response;
@@ -361,29 +361,70 @@ export class HonoApiClient {
   /**
    * Logout
    */
-  async logout(): Promise<ApiResponse<void>> {
-    const response = await this.request<void>('POST', '/api/auth/logout');
+  async logout(): Promise<ApiResponse<LogoutResponse>> {
+    const response = await this.request<LogoutResponse>('POST', '/api/auth/logout');
     await this.clearTokensFromStorage();
     return response;
   }
 
+  /**
+   * Get current user profile (from auth context)
+   */
+  async getMe(): Promise<ApiResponse<MeResponse>> {
+    return this.request<MeResponse>('GET', '/api/auth/me');
+  }
+
   // ========================
-  // Profile Endpoints
+  // User Endpoints
   // ========================
 
   /**
-   * Get user profile
+   * Get current user's full profile
    */
-  async getProfile(userId?: string): Promise<ApiResponse<UserProfile>> {
-    const id = userId || this.userId;
-    return this.request<UserProfile>('GET', `/api/users/${id}`);
+  async getUsersMe(): Promise<ApiResponse<FullUserProfile>> {
+    return this.request<FullUserProfile>('GET', '/api/users/me');
   }
 
   /**
-   * Update user profile
+   * Get public profile of another user
    */
-  async updateProfile(updates: Partial<UserProfile>): Promise<ApiResponse<UserProfile>> {
-    return this.request<UserProfile>('PATCH', `/api/users/${this.userId}`, updates);
+  async getUserPublicProfile(userId: string): Promise<ApiResponse<PublicUserProfile>> {
+    return this.request<PublicUserProfile>('GET', `/api/users/${userId}/profile`);
+  }
+
+  /**
+   * Update current user's profile
+   */
+  async updateUserProfile(updates: ProfileUpdateRequest): Promise<ApiResponse<FullUserProfile>> {
+    return this.request<FullUserProfile>('PUT', '/api/users/me/profile', updates);
+  }
+
+  /**
+   * Update current user's preferences
+   */
+  async updateUserPreferences(preferences: PreferencesUpdateRequest): Promise<ApiResponse<FullUserProfile>> {
+    return this.request<FullUserProfile>('PUT', '/api/users/me/preferences', preferences);
+  }
+
+  /**
+   * Get current user's statistics
+   */
+  async getUserStatistics(days: number = 30): Promise<ApiResponse<UserStatistics>> {
+    return this.request<UserStatistics>('GET', `/api/users/me/statistics?days=${days}`);
+  }
+
+  /**
+   * Get current user's game history
+   */
+  async getUserGames(page: number = 1, limit: number = 20): Promise<ApiResponse<GameHistoryResponse>> {
+    return this.request<GameHistoryResponse>('GET', `/api/users/me/games?page=${page}&limit=${limit}`);
+  }
+
+  /**
+   * Mark tutorial as completed
+   */
+  async markTutorialComplete(): Promise<ApiResponse<TutorialCompleteResponse>> {
+    return this.request<TutorialCompleteResponse>('POST', '/api/users/me/tutorial-complete');
   }
 
   // ========================
@@ -393,37 +434,45 @@ export class HonoApiClient {
   /**
    * Create new room
    */
-  async createRoom(settings?: { timeLimitSeconds?: number }): Promise<ApiResponse<Room>> {
-    return this.request<Room>('POST', '/api/rooms', { settings });
-  }
-
-  /**
-   * Get room details
-   */
-  async getRoom(roomId: string): Promise<ApiResponse<Room>> {
-    return this.request<Room>('GET', `/api/rooms/${roomId}`);
+  async createRoom(settings?: CreateRoomRequest): Promise<ApiResponse<CreateRoomResponse>> {
+    return this.request<CreateRoomResponse>('POST', '/api/rooms/create', {
+      timeLimitSeconds: settings?.timeLimitSeconds || 60
+    });
   }
 
   /**
    * List available rooms
    */
-  async listRooms(filters?: { status?: string; limit?: number }): Promise<ApiResponse<Room[]>> {
-    const query = new URLSearchParams(filters as any).toString();
-    return this.request<Room[]>('GET', `/api/rooms${query ? `?${query}` : ''}`);
+  async listRooms(): Promise<ApiResponse<RoomListResponse>> {
+    return this.request<RoomListResponse>('GET', '/api/rooms/list');
   }
 
   /**
    * Join room
    */
-  async joinRoom(roomId: string): Promise<ApiResponse<{ participant: RoomParticipant }>> {
-    return this.request<{ participant: RoomParticipant }>('POST', `/api/rooms/${roomId}/join`);
+  async joinRoom(gameId: string): Promise<ApiResponse<JoinRoomResponse>> {
+    return this.request<JoinRoomResponse>('POST', '/api/rooms/join', { gameId });
+  }
+
+  /**
+   * Start game (creator only)
+   */
+  async startGame(gameId: string): Promise<ApiResponse<StartGameResponse>> {
+    return this.request<StartGameResponse>('POST', `/api/rooms/${gameId}/start`);
+  }
+
+  /**
+   * Get room details
+   */
+  async getRoom(roomId: string): Promise<ApiResponse<RoomDetailsResponse>> {
+    return this.request<RoomDetailsResponse>('GET', `/api/rooms/${roomId}`);
   }
 
   /**
    * Leave room
    */
-  async leaveRoom(roomId: string): Promise<ApiResponse<void>> {
-    return this.request<void>('POST', `/api/rooms/${roomId}/leave`);
+  async leaveRoom(roomId: string): Promise<ApiResponse<LeaveRoomResponse>> {
+    return this.request<LeaveRoomResponse>('POST', `/api/rooms/${roomId}/leave`);
   }
 
   // ========================
@@ -431,17 +480,31 @@ export class HonoApiClient {
   // ========================
 
   /**
-   * Send game action
+   * Claim a card during gameplay
    */
-  async sendGameAction(roomId: string, action: GameAction): Promise<ApiResponse<any>> {
-    return this.request<any>('POST', `/api/games/${roomId}/action`, action);
+  async claimCard(gameId: string, params: ClaimCardRequest): Promise<ApiResponse<ClaimCardResponse>> {
+    return this.request<ClaimCardResponse>('POST', `/api/games/${gameId}/claim`, params);
   }
 
   /**
-   * Get game state
+   * Respond to a claim (believe or doubt)
    */
-  async getGameState(roomId: string): Promise<ApiResponse<any>> {
-    return this.request<any>('GET', `/api/games/${roomId}/state`);
+  async respondToClaim(gameId: string, params: RespondToClaimRequest): Promise<ApiResponse<RespondToClaimResponse>> {
+    return this.request<RespondToClaimResponse>('POST', `/api/games/${gameId}/respond`, params);
+  }
+
+  /**
+   * Pass a card to the next player
+   */
+  async passCard(gameId: string, params: PassCardRequest): Promise<ApiResponse<PassCardResponse>> {
+    return this.request<PassCardResponse>('POST', `/api/games/${gameId}/pass`, params);
+  }
+
+  /**
+   * Get current game state
+   */
+  async getGameState(gameId: string): Promise<ApiResponse<GameStateResponse>> {
+    return this.request<GameStateResponse>('GET', `/api/games/${gameId}/state`);
   }
 }
 

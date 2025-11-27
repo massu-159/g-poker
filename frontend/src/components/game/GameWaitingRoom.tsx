@@ -62,42 +62,53 @@ export function GameWaitingRoom({ roomId, onGameStarted, onRoomLeft }: GameWaiti
     try {
       console.log('[GameWaitingRoom] Loading room data:', roomId);
 
-      const [roomResponse, participantsResponse] = await Promise.all([
-        apiClient.getRoomDetails(roomId),
-        apiClient.getRoomParticipants(roomId),
-      ]);
+      const roomResponse = await apiClient.getRoom(roomId);
 
       if (roomResponse.success && roomResponse.data) {
-        setRoom(roomResponse.data);
-        console.log('[GameWaitingRoom] Room loaded:', roomResponse.data);
-      } else {
-        console.error('[GameWaitingRoom] Failed to load room:', roomResponse.error);
-        Alert.alert('Error', roomResponse.error || 'Failed to load room');
-        router.back();
-        return;
-      }
+        const gameData = roomResponse.data.game;
 
-      if (participantsResponse.success && participantsResponse.data) {
-        setParticipants(participantsResponse.data);
+        // Set room data
+        setRoom({
+          id: gameData.id,
+          creatorId: authState.user?.id || '',
+          status: gameData.status as 'waiting' | 'in_progress' | 'completed',
+          maxPlayers: gameData.maxPlayers,
+          currentPlayerCount: gameData.currentPlayers,
+          settings: {
+            timeLimitSeconds: gameData.timeLimitSeconds,
+          },
+          createdAt: gameData.createdAt,
+        });
+
+        // Extract participants from response
+        const participantsData = gameData.participants || [];
+        setParticipants(participantsData);
 
         // Convert to lobby players format
-        const players: LobbyPlayer[] = participantsResponse.data.map(p => ({
-          id: p.userId,
-          displayName: p.displayName || p.userId.slice(0, 8),
-          avatarUrl: null,
-          isReady: p.isReady,
-          isCreator: p.isCreator,
+        const players: LobbyPlayer[] = participantsData.map((p: any) => ({
+          id: p.userId || p.id,
+          displayName: p.displayName || p.display_name || p.userId?.slice(0, 8) || 'Player',
+          avatarUrl: p.avatarUrl || p.avatar_url || null,
+          isReady: p.isReady || p.is_ready || false,
+          isCreator: p.role === 'creator' || p.isCreator || false,
         }));
 
         setLobbyPlayers(players);
 
         // Find current user's ready status
-        const currentParticipant = participantsResponse.data.find(
-          p => p.userId === authState.user?.id
+        const currentParticipant = participantsData.find(
+          (p: any) => (p.userId || p.id) === authState.user?.id
         );
         if (currentParticipant) {
-          setIsReady(currentParticipant.isReady);
+          setIsReady(currentParticipant.isReady || currentParticipant.is_ready || false);
         }
+
+        console.log('[GameWaitingRoom] Room loaded successfully');
+      } else {
+        console.error('[GameWaitingRoom] Failed to load room:', roomResponse.error);
+        Alert.alert('Error', roomResponse.error || 'Failed to load room');
+        router.back();
+        return;
       }
     } catch (error) {
       console.error('[GameWaitingRoom] Load room error:', error);
@@ -114,21 +125,20 @@ export function GameWaitingRoom({ roomId, onGameStarted, onRoomLeft }: GameWaiti
     setIsUpdatingReady(true);
 
     try {
-      const response = await apiClient.updateReadyStatus(roomId, newReadyState);
+      // Update ready status optimistically
+      setIsReady(newReadyState);
 
-      if (response.success) {
-        setIsReady(newReadyState);
-
-        // Emit ready status via Socket.io for instant feedback
-        if (socketClient.isConnected()) {
-          socketClient.updateReadyStatus(roomId, newReadyState);
-        }
+      // Emit ready status via Socket.io
+      if (socketClient.isConnected()) {
+        socketClient.updateReadyStatus(roomId, newReadyState);
       } else {
-        Alert.alert('Error', response.error || 'Failed to update ready status');
+        Alert.alert('Connection Error', 'Not connected to game server');
+        setIsReady(!newReadyState); // Revert optimistic update
       }
     } catch (error) {
       console.error('[GameWaitingRoom] Ready toggle error:', error);
       Alert.alert('Error', 'Failed to update ready status');
+      setIsReady(!newReadyState); // Revert optimistic update
     } finally {
       setIsUpdatingReady(false);
     }
