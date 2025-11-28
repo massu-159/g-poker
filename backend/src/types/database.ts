@@ -44,6 +44,9 @@ export interface Profile {
   updated_at: string | null // timestamptz
   last_seen_at: string | null // timestamptz
   is_active: boolean | null
+  tutorial_completed: boolean // DEFAULT FALSE, NOT NULL
+  tutorial_completed_at: string | null // timestamptz, nullable
+  onboarding_version: string | null // VARCHAR(10), DEFAULT '1.0'
 }
 
 /**

@@ -4,7 +4,7 @@
  */
 
 import { Socket, io as socketClient } from 'socket.io-client'
-import { getSupabase } from '../../../src/lib/supabase.js'
+import { getSupabase, getAuthAdminClient } from '../../../src/lib/supabase.js'
 
 // Test configuration
 export const TEST_CONFIG = {
@@ -159,7 +159,9 @@ export async function deleteTestUser(userId: string) {
     await supabase.from('profiles').delete().eq('id', userId)
 
     // Delete auth user (requires admin privileges)
-    await supabase.auth.admin.deleteUser(userId)
+    // Use dedicated auth client to prevent session contamination
+    const authAdminClient = getAuthAdminClient()
+    await authAdminClient.auth.admin.deleteUser(userId)
 
     console.log(`[Test Cleanup] Deleted test user: ${userId}`)
   } catch (error) {

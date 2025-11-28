@@ -11,6 +11,7 @@ import {
   afterAll,
   afterEach,
 } from 'vitest'
+import { io } from 'socket.io-client'
 import type { Socket } from 'socket.io-client'
 import {
   createTestUser,
@@ -257,18 +258,34 @@ describe('Authentication Flow E2E Tests', () => {
       expect(response.status).toBe(400) // Bad Request
     }, 10000)
 
-    it('should handle Socket.io authentication without access token', async () => {
-      try {
-        // Try to create socket without authentication
-        const response = await fetch(TEST_CONFIG.SOCKET_URL, {
-          method: 'GET',
-        })
+    it('should reject Socket.io authentication without access token', async () => {
+      const socket = io(TEST_CONFIG.SOCKET_URL, {
+        autoConnect: false,
+      })
 
-        // Socket.io server should be running
-        expect(response.status).toBe(200)
-      } catch (error) {
-        // Expected: Connection might fail without proper authentication
-      }
+      // Wait for authentication_failed event
+      const authFailedPromise = new Promise<any>((resolve) => {
+        socket.on('authentication_failed', (data) => {
+          resolve(data)
+        })
+      })
+
+      // Connect and try to authenticate without token
+      socket.connect()
+      socket.emit('authenticate', {
+        access_token: null,
+        device_info: {
+          device_id: 'test-device-invalid',
+          device_type: 'desktop',
+        },
+      })
+
+      // Should receive authentication_failed event
+      const failureData = await authFailedPromise
+      expect(failureData.error_code).toBe('INVALID_TOKEN')
+      expect(failureData.requires_login).toBe(true)
+
+      socket.disconnect()
     }, 10000)
   })
 })

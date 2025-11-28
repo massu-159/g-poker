@@ -157,7 +157,8 @@ export function generateJWTToken(userId: string, email: string): string {
     {
       userId,
       email,
-      iat: Math.floor(Date.now() / 1000),
+      jti: `${userId}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`, // Unique JWT ID
+      // iat is automatically added by jwt.sign() (second precision)
     },
     getJWTSecret(),
     {
@@ -176,7 +177,8 @@ export function generateRefreshToken(userId: string): string {
     {
       userId,
       type: 'refresh',
-      iat: Math.floor(Date.now() / 1000),
+      jti: `${userId}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`, // Unique JWT ID
+      // iat is automatically added by jwt.sign() (second precision)
     },
     getJWTSecret(),
     {
