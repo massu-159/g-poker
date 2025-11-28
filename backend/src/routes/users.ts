@@ -57,7 +57,9 @@ users.get('/me', authMiddleware, async c => {
     const supabase = getSupabase()
     const user = c.get('user')
 
-    // Get comprehensive user data
+    console.log('[/api/users/me] Request received for userId:', user.userId)
+
+    // Get comprehensive user data (without nested user_preferences to avoid FK issue)
     const { data: profile, error } = await supabase
       .from('profiles')
       .select(
@@ -72,21 +74,37 @@ users.get('/me', authMiddleware, async c => {
         onboarding_version,
         public_profiles (
           display_name,
-          avatar_url,
-          verification_status,
-          games_played,
-          games_won,
-          win_rate
-        ),
-        user_preferences (*)
+          avatar_url
+        )
       `
       )
       .eq('id', user.userId)
       .single()
 
+    console.log('[/api/users/me] Profile query result:', {
+      hasData: !!profile,
+      hasError: !!error,
+      errorDetails: error,
+      profileId: profile?.id,
+      profileEmail: profile?.email,
+      publicProfilesCount: profile?.public_profiles?.length,
+    })
+
     if (error || !profile) {
+      console.error('[/api/users/me] Profile not found or error:', {
+        userId: user.userId,
+        error: error,
+        profile: profile,
+      })
       return c.json({ error: 'User profile not found' }, 404)
     }
+
+    // Get user preferences separately (avoid FK relationship issue)
+    const { data: preferences } = await supabase
+      .from('user_preferences')
+      .select('*')
+      .eq('user_id', user.userId)
+      .single()
 
     // Get current active rooms (direct SQL query)
     const { data: activeRooms } = await supabase
@@ -143,19 +161,14 @@ users.get('/me', authMiddleware, async c => {
         email: profile.email,
         displayName: profile.public_profiles?.[0]?.display_name,
         avatarUrl: profile.public_profiles?.[0]?.avatar_url,
-        verificationStatus: profile.public_profiles?.[0]?.verification_status,
         createdAt: profile.created_at,
         lastSeenAt: profile.last_seen_at,
         isActive: profile.is_active,
         tutorialCompleted: profile.tutorial_completed,
         tutorialCompletedAt: profile.tutorial_completed_at,
         onboardingVersion: profile.onboarding_version,
-        preferences: profile.user_preferences?.[0],
+        preferences: preferences,
         statistics: {
-          gamesPlayed: profile.public_profiles?.[0]?.games_played || 0,
-          gamesWon: profile.public_profiles?.[0]?.games_won || 0,
-          winRate: profile.public_profiles?.[0]?.win_rate || 0,
-          // Cockroach Poker game statistics from public_profiles
           friendCount: friendCount || 0,
         },
         currentRooms: activeRooms || [],

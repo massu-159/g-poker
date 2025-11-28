@@ -1,0 +1,37 @@
+# ==================================================
+# .gcloudignore - Cloud Buildでアップロードから除外
+# ==================================================
+
+# Git関連
+.git/
+.gitignore
+
+# Node.js
+node_modules/
+
+# テスト
+tests/
+coverage/
+*.test.ts
+*.spec.ts
+
+# ビルド成果物
+dist/
+
+# 環境変数
+.env
+.env.*
+!.env.example
+
+# ドキュメント
+docs/
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+
+# その他
+.DS_Store
+*.log

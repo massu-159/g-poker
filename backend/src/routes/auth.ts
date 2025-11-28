@@ -11,6 +11,7 @@ import {
   hashToken,
   getJWTSecret,
 } from '../middleware/auth.js'
+import { getAuthAdminClient } from '../lib/supabase.js'
 import { rateLimit } from '../middleware/rateLimit.js'
 import { z } from 'zod'
 import { validator } from 'hono/validator'
@@ -109,9 +110,11 @@ auth.post(
       }
 
       // Create user in Supabase Auth (Supabase handles password hashing internally)
-      // Note: Database trigger automatically creates profile and public_profile records
+      // Use dedicated auth client to prevent session contamination of singleton client
+      // Note: Database trigger (handle_new_user) automatically creates profile and public_profile records
+      const authAdminClient = getAuthAdminClient()
       const { data: authUser, error: authError } =
-        await supabase.auth.admin.createUser({
+        await authAdminClient.auth.admin.createUser({
           email,
           password,
           email_confirm: true,
@@ -122,98 +125,56 @@ auth.post(
         })
 
       if (authError || !authUser.user) {
-        console.error('Auth user creation error:', authError)
+        console.error('[Registration] Auth user creation error:', authError)
         return c.json({ error: 'Failed to create user account' }, 500)
       }
 
-      // Phase C: Wait for trigger completion with retry logic
-      // Database trigger (handle_new_user) runs asynchronously after auth.users INSERT
-      // We need to wait for profiles and public_profiles to be created before proceeding
-      const maxRetries = 30 // Increased from 10 to 30 for more reliable trigger completion
-      const retryDelay = 100 // ms (total wait time: 3000ms)
-      let profileCreated = false
-      let publicProfileCreated = false
+      console.log('[Registration] Auth user created:', authUser.user.id)
 
+      // Wait for database trigger (handle_new_user) to complete profile creation
+      // Trigger uses SECURITY DEFINER to bypass RLS policies
       console.log(
         '[Registration] Waiting for trigger to create profiles for user:',
         authUser.user.id
       )
 
-      for (let i = 0; i < maxRetries; i++) {
-        // Wait before checking (except first iteration)
-        if (i > 0) {
-          // eslint-disable-next-line no-undef
-          await new Promise(resolve => setTimeout(resolve, retryDelay))
-        }
+      const maxRetries = 10
+      const retryDelay = 300 // ms
+      let profileCreated = false
 
-        // Check if profiles exist
-        const { data: profileCheck, error: profileCheckError } = await supabase
+      for (let i = 0; i < maxRetries; i++) {
+        // Check if profiles were created by trigger
+        const { data: profile } = await supabase
           .from('profiles')
           .select('id')
           .eq('id', authUser.user.id)
           .maybeSingle()
 
-        const { data: publicProfileCheck, error: publicProfileCheckError } =
-          await supabase
-            .from('public_profiles')
-            .select('id')
-            .eq('profile_id', authUser.user.id)
-            .maybeSingle()
+        const { data: publicProfile } = await supabase
+          .from('public_profiles')
+          .select('profile_id')
+          .eq('profile_id', authUser.user.id)
+          .maybeSingle()
 
-        profileCreated = !!profileCheck && !profileCheckError
-        publicProfileCreated = !!publicProfileCheck && !publicProfileCheckError
-
-        if (profileCreated && publicProfileCreated) {
+        if (profile && publicProfile) {
           console.log(
             `[Registration] ✅ Trigger completed after ${i * retryDelay}ms`
           )
+          profileCreated = true
           break
         }
 
-        if (i === maxRetries - 1) {
-          console.warn(
-            `[Registration] ⚠️ Trigger did not complete after ${maxRetries * retryDelay}ms`
-          )
-
-          // Final check before giving up - sometimes trigger completes just after our last check
-          // eslint-disable-next-line no-undef
-          await new Promise(resolve => setTimeout(resolve, 500))
-
-          const { data: finalProfileCheck } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', authUser.user.id)
-            .maybeSingle()
-
-          const { data: finalPublicProfileCheck } = await supabase
-            .from('public_profiles')
-            .select('id')
-            .eq('profile_id', authUser.user.id)
-            .maybeSingle()
-
-          if (finalProfileCheck && finalPublicProfileCheck) {
-            console.log('[Registration] ✅ Trigger completed after final wait')
-          } else {
-            console.error(
-              '[Registration] ❌ Trigger failed after 3500ms total wait time'
-            )
-            console.error('[Registration] Profile exists:', !!finalProfileCheck)
-            console.error(
-              '[Registration] Public profile exists:',
-              !!finalPublicProfileCheck
-            )
-
-            // Cleanup: delete auth user since profiles were not created
-            await supabase.auth.admin.deleteUser(authUser.user.id)
-            return c.json(
-              {
-                error: 'Registration failed - profile creation timeout',
-                details: 'Database trigger did not complete in expected time',
-              },
-              500
-            )
-          }
+        if (i < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay))
         }
+      }
+
+      if (!profileCreated) {
+        console.error('[Registration] ❌ Trigger failed to create profiles')
+        // Cleanup: delete auth user (use separate client to avoid session contamination)
+        const cleanupClient = getAuthAdminClient()
+        await cleanupClient.auth.admin.deleteUser(authUser.user.id)
+        return c.json({ error: 'Failed to create user profile' }, 500)
       }
 
       // Initialize user preferences (direct insert, defaults from table schema)
@@ -224,7 +185,10 @@ auth.post(
           // theme: 'dark', language: 'en', sound_enabled: true, etc.
         })
       } catch (prefError) {
-        console.warn('User preferences initialization skipped:', prefError)
+        console.warn(
+          '[Registration] User preferences initialization skipped:',
+          prefError
+        )
       }
 
       // Generate tokens
@@ -336,8 +300,10 @@ auth.post(
       }
 
       // Verify password with Supabase Auth
+      // Use dedicated auth client to prevent session contamination of singleton client
+      const authClient = getAuthAdminClient()
       const { data: authData, error: authError } =
-        await supabase.auth.signInWithPassword({
+        await authClient.auth.signInWithPassword({
           email,
           password,
         })
